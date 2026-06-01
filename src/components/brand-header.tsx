@@ -4,34 +4,31 @@ import { APP_NAME, GENESYS_LOGO_SRC } from '@/lib/constants';
 export interface BrandHeaderProps {
   /** Sidebar stack vs centered auth/vault screens. */
   layout?: 'sidebar' | 'auth';
-  /** Line under the product name; sensible defaults per layout. */
+  /** Optional line under the product name (auth screens only). */
   subtitle?: string;
 }
 
-const DEFAULT_SUBTITLE: Record<NonNullable<BrandHeaderProps['layout']>, string> = {
-  sidebar: 'Genesys Knowledge Fabric',
-  auth: 'Genesys Cloud',
-};
-
 /**
- * Shared product branding: Genesys wordmark + app title. Used on the sidebar,
- * login screen, and vault gate so branding stays consistent.
+ * Shared product branding: the Genesys wordmark with a concise product label.
+ *
+ * The sidebar stacks the logo above the product name (and omits a redundant
+ * "Genesys" subtitle, since the wordmark already carries it); the centered auth
+ * layout keeps the logo and copy side by side.
  */
 export function BrandHeader({ layout = 'sidebar', subtitle }: BrandHeaderProps) {
-  const sub = subtitle ?? DEFAULT_SUBTITLE[layout];
   return (
     <div className={`brand-header brand-header--${layout}`}>
       <Image
         src={GENESYS_LOGO_SRC}
         alt="Genesys"
         className="brand-logo"
-        width={layout === 'sidebar' ? 108 : 124}
-        height={layout === 'sidebar' ? 24 : 28}
+        width={layout === 'sidebar' ? 96 : 124}
+        height={layout === 'sidebar' ? 22 : 28}
         priority
       />
       <div className="brand-header-copy">
         <div className="brand-name">{APP_NAME}</div>
-        <div className="brand-sub">{sub}</div>
+        {subtitle ? <div className="brand-sub">{subtitle}</div> : null}
       </div>
     </div>
   );
