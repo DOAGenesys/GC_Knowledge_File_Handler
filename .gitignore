@@ -46,3 +46,7 @@ yarn-error.log*
 # local vault exports (never commit)
 *.enc
 *.gkfsm-vault
+
+# markdown (keep README.md tracked)
+*.md
+!README.md
