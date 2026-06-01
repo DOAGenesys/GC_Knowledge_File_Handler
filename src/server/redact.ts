@@ -39,24 +39,33 @@ export function redactString(input: string): string {
 const MAX_DEPTH = 6;
 
 /** Deep-redact an arbitrary value for safe logging / support bundles. */
-export function redact(value: unknown, depth = 0): unknown {
+export function redact(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
   if (depth > MAX_DEPTH) return '[TRUNCATED]';
   if (value == null) return value;
   if (typeof value === 'string') return redactString(value);
   if (typeof value === 'number' || typeof value === 'boolean') return value;
-  if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return '[CIRCULAR]';
+    seen.add(value);
+    const out = value.map((v) => redact(v, depth + 1, seen));
+    seen.delete(value);
+    return out;
+  }
   if (value instanceof Error) {
     return { name: value.name, message: redactString(value.message) };
   }
   if (typeof value === 'object') {
+    if (seen.has(value)) return '[CIRCULAR]';
+    seen.add(value);
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       if (SENSITIVE_KEY_RE.test(k)) {
         out[k] = '[REDACTED]';
       } else {
-        out[k] = redact(v, depth + 1);
+        out[k] = redact(v, depth + 1, seen);
       }
     }
+    seen.delete(value);
     return out;
   }
   return '[UNSERIALIZABLE]';

@@ -4,6 +4,8 @@ import { isAppError } from '@/lib/errors';
 import { getServerConfig } from './config';
 import { listSources } from './genesys/client';
 import { getAccessToken } from './genesys/oauth';
+import { logger } from './logger';
+import { redactErrorMessage } from './redact';
 
 /**
  * Server-side diagnostics (PRODUCT.md §12.8). Verifies the deployment is safe
@@ -47,8 +49,9 @@ export async function runServerDiagnostics(): Promise<ServerCheck[]> {
     try {
       await getAccessToken();
       tokenOk = true;
-    } catch {
+    } catch (err) {
       tokenOk = false;
+      logger.warn('diagnostics.token.failed', { detail: redactErrorMessage(err) });
     }
   }
   checks.push({
@@ -66,6 +69,11 @@ export async function runServerDiagnostics(): Promise<ServerCheck[]> {
       await listSources({ pageSize: 1 });
     } catch (err) {
       status = isAppError(err) && err.code === 'GENESYS_PERMISSION_DENIED' ? 'fail' : 'warn';
+      logger.warn('diagnostics.source_list.failed', {
+        status,
+        code: isAppError(err) ? err.code : undefined,
+        detail: redactErrorMessage(err),
+      });
     }
     checks.push({
       key: 'srclist',

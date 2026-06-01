@@ -3,6 +3,8 @@ import { getRun } from 'workflow/api';
 import { AppError } from '@/lib/errors';
 import { requireAuth } from '@/server/auth/guards';
 import { jsonError } from '@/server/http/route-helpers';
+import { logger } from '@/server/logger';
+import { redactErrorMessage } from '@/server/redact';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,7 +63,8 @@ export async function GET(req: NextRequest): Promise<Response> {
           controller.enqueue(encoder.encode(`data: ${toMessage(value)}\n\n`));
         }
         controller.enqueue(encoder.encode('event: end\ndata: {}\n\n'));
-      } catch {
+      } catch (err) {
+        logger.warn('sync.status.stream_error', { runId, detail: redactErrorMessage(err) });
         controller.enqueue(encoder.encode('event: error\ndata: {}\n\n'));
       } finally {
         reader.releaseLock();

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import type { ZodSchema } from 'zod';
 import { AppError } from '@/lib/errors';
-import { logger } from '../logger';
+import { logger, type LogFields } from '../logger';
 import { redactErrorMessage } from '../redact';
 import { toAppError } from '../auth/guards';
 
@@ -14,15 +14,39 @@ export function jsonOk<T>(data: T, init?: ResponseInit): NextResponse {
   return NextResponse.json(data as object, init);
 }
 
-export function jsonError(err: unknown): NextResponse {
+function requestLogFields(req: NextRequest, startedAt: number): LogFields {
+  return {
+    method: req.method,
+    path: req.nextUrl.pathname,
+    requestId:
+      req.headers.get('x-request-id') ??
+      req.headers.get('x-vercel-id') ??
+      req.headers.get('cf-ray') ??
+      undefined,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+function logRouteResponse(req: NextRequest, res: Response, startedAt: number): void {
+  const fields = {
+    ...requestLogFields(req, startedAt),
+    status: res.status,
+  };
+  if (res.status >= 500) logger.error('route.completed', fields);
+  else if (res.status >= 400) logger.warn('route.completed', fields);
+  else logger.info('route.completed', fields);
+}
+
+export function jsonError(err: unknown, fields: LogFields = {}): NextResponse {
   const appErr = toAppError(err);
   if (appErr.httpStatus >= 500) {
     logger.error('route.error', {
+      ...fields,
       code: appErr.code,
       detail: redactErrorMessage(appErr.detail ?? appErr.cause),
     });
   } else {
-    logger.warn('route.rejected', { code: appErr.code });
+    logger.warn('route.rejected', { ...fields, code: appErr.code });
   }
   return NextResponse.json(appErr.toClientJSON(), { status: appErr.httpStatus });
 }
@@ -76,10 +100,13 @@ export function route(
     req: NextRequest,
     ctx: { params: Promise<Record<string, string>> },
   ): Promise<NextResponse> => {
+    const startedAt = Date.now();
     try {
-      return await handler(req, ctx);
+      const res = await handler(req, ctx);
+      logRouteResponse(req, res, startedAt);
+      return res;
     } catch (err) {
-      return jsonError(err);
+      return jsonError(err, requestLogFields(req, startedAt));
     }
   };
 }
