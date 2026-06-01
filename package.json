@@ -1,0 +1,57 @@
+{
+  "name": "genesys-knowledge-file-sync-manager",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Database-free web app for managing Genesys Cloud Knowledge Fabric FileUpload sources and their file synchronizations.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "lint:strict": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --dir src",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "security:scope": "vitest run src/server/genesys/__tests__/endpoint-scope.test.ts",
+    "security:audit": "npm audit --omit=dev --audit-level=high",
+    "check": "npm run format:check && npm run lint:strict && npm run typecheck && npm run test",
+    "analyze": "ANALYZE=true next build"
+  },
+  "dependencies": {
+    "@workflow/next": "^4.0.7",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
+    "workflow": "^4.2.6",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^15.1.6",
+    "eslint-config-prettier": "^9.1.0",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
