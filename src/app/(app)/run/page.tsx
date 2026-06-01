@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/icon';
 import {
@@ -90,6 +90,13 @@ export default function ActiveRunPage() {
   const [checkingRemote, setCheckingRemote] = useState(false);
   const reselectTarget = useRef<string | null>(null);
   const reselectInput = useRef<HTMLInputElement>(null);
+
+  // Stable handler so memoized rows don't re-render when an unrelated file's
+  // upload progress mutates `activeRun`.
+  const handleReselect = useCallback((localFileKey: string) => {
+    reselectTarget.current = localFileKey;
+    reselectInput.current?.click();
+  }, []);
 
   if (!activeRun) {
     return (
@@ -465,14 +472,7 @@ export default function ActiveRunPage() {
                 </thead>
                 <tbody>
                   {r.files.map((f) => (
-                    <RunFileRow
-                      key={f.localFileKey}
-                      f={f}
-                      onReselect={() => {
-                        reselectTarget.current = f.localFileKey;
-                        reselectInput.current?.click();
-                      }}
-                    />
+                    <RunFileRow key={f.localFileKey} f={f} onReselect={handleReselect} />
                   ))}
                 </tbody>
               </table>
@@ -551,7 +551,13 @@ export default function ActiveRunPage() {
   );
 }
 
-function RunFileRow({ f, onReselect }: { f: ActiveRunFile; onReselect: () => void }) {
+const RunFileRow = memo(function RunFileRow({
+  f,
+  onReselect,
+}: {
+  f: ActiveRunFile;
+  onReselect: (localFileKey: string) => void;
+}) {
   const uploading = f.status === 'Uploading';
   return (
     <tr>
@@ -611,7 +617,12 @@ function RunFileRow({ f, onReselect }: { f: ActiveRunFile; onReselect: () => voi
       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
         {f.status === 'NeedsReselect' ? (
           <Tip text="Reselect the original file to resume">
-            <Btn variant="default" size="sm" icon="refresh" onClick={onReselect}>
+            <Btn
+              variant="default"
+              size="sm"
+              icon="refresh"
+              onClick={() => onReselect(f.localFileKey)}
+            >
               Reselect
             </Btn>
           </Tip>
@@ -619,4 +630,4 @@ function RunFileRow({ f, onReselect }: { f: ActiveRunFile; onReselect: () => voi
       </td>
     </tr>
   );
-}
+});

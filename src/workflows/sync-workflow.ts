@@ -18,12 +18,14 @@
  *  - The final stream message carries the SAFETY-DOWNGRADED outcome, so an
  *    unconfirmed completion is never reported to the browser as success.
  */
-import { createHook, getWritable } from 'workflow';
+import { createHook, getWritable, sleep } from 'workflow';
 import { FILE_UPLOAD_SOURCE_TYPE } from '@/lib/constants';
 import { AppError, type ErrorCode } from '@/lib/errors';
 import { startSyncInputSchema, type StartSyncInput } from '@/lib/schemas';
 import { validateFile } from '@/lib/validation';
 import { uuid } from '@/lib/ids';
+import { getServerConfig } from '@/server/config';
+import { logger, type LogFields } from '@/server/logger';
 import {
   createSource,
   getSource,
@@ -45,6 +47,13 @@ import { syncHookToken, type WorkflowHookMessage, type WorkflowStreamMessage } f
 const CONCURRENCY = 2;
 const MAX_ATTEMPTS = 3;
 
+/**
+ * Local sentinel returned when the durable upload-wait deadline elapses before
+ * the run reaches a terminal outcome. Used only for in-workflow control flow —
+ * it never crosses a step boundary, so it does not need to be serializable.
+ */
+const UPLOAD_WAIT_TIMEOUT = Symbol('uploadWaitTimeout');
+
 /* ----------------------------- steps ----------------------------- */
 
 async function writeStreamStep(message: WorkflowStreamMessage): Promise<void> {
@@ -55,6 +64,16 @@ async function writeStreamStep(message: WorkflowStreamMessage): Promise<void> {
   } finally {
     writer.releaseLock();
   }
+}
+
+async function logWorkflowStep(event: string, fields?: LogFields): Promise<void> {
+  'use step';
+  logger.info(event, fields);
+}
+
+async function warnWorkflowStep(event: string, fields?: LogFields): Promise<void> {
+  'use step';
+  logger.warn(event, fields);
 }
 
 async function validateInputStep(input: StartSyncInput): Promise<void> {
@@ -156,6 +175,16 @@ async function patchStep(
   }
 }
 
+/**
+ * Read the operator-configured upload-wait budget (WORKFLOW_UPLOAD_WAIT_SECONDS)
+ * inside a step so the workflow body stays deterministic (no env reads in the
+ * sandbox); the value is recorded as step output and reused on replay.
+ */
+async function resolveUploadWaitStep(): Promise<number> {
+  'use step';
+  return getServerConfig().limits.uploadWaitSeconds;
+}
+
 async function refreshStatusStep(
   sourceId: string,
   synchronizationId: string,
@@ -188,6 +217,11 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
   'use workflow';
 
   await writeStreamStep({ kind: 'state', runState: 'WorkflowStarting' });
+  await logWorkflowStep('sync.workflow.started', {
+    fileCount: input.files.length,
+    sourceMode: input.sourceMode,
+    syncType: input.syncType,
+  });
 
   // Create the cancel/upload hook BEFORE any setup so a cancel that arrives
   // during source create / sync start can never be lost (resumeHook would
@@ -209,6 +243,11 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
       lastRemoteStatus: null,
       errorSummary: resolved.code,
     });
+    await warnWorkflowStep('sync.workflow.source_failed', {
+      code: resolved.code,
+      outcome,
+      sourceMode: input.sourceMode,
+    });
     return {
       outcome,
       sourceId: null,
@@ -219,6 +258,10 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
   }
   const sourceId = resolved.sourceId;
   await writeStreamStep({ kind: 'source', sourceId, createdByApp: resolved.createdByApp });
+  await logWorkflowStep('sync.workflow.source_resolved', {
+    sourceId,
+    createdByApp: resolved.createdByApp,
+  });
 
   // Start synchronization.
   await writeStreamStep({ kind: 'state', runState: 'SynchronizationStarting', step: 'sync' });
@@ -232,6 +275,11 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
       lastRemoteStatus: null,
       errorSummary: started.code,
     });
+    await warnWorkflowStep('sync.workflow.start_failed', {
+      code: started.code,
+      outcome,
+      sourceId,
+    });
     return {
       outcome,
       sourceId,
@@ -242,6 +290,7 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
   }
   const synchronizationId = started.synchronizationId;
   await writeStreamStep({ kind: 'sync', synchronizationId });
+  await logWorkflowStep('sync.workflow.sync_started', { sourceId, synchronizationId });
 
   // Upload loop driven by the engine.
   const engine = createEngine(
@@ -263,9 +312,47 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
   let outcome = evaluate(engine);
 
   if (!outcome) {
-    for await (const msg of hook) {
+    // Bound the wait for browser upload results with a durable deadline. If the
+    // browser never reports (tab closed, network lost) the run must PAUSE as
+    // NeedsUserAction rather than hang forever — it must never falsely complete.
+    const waitSeconds = await resolveUploadWaitStep();
+    const iterator = hook[Symbol.asyncIterator]();
+    const timeoutSignal: Promise<typeof UPLOAD_WAIT_TIMEOUT> | null =
+      waitSeconds > 0
+        ? sleep(waitSeconds * 1000).then((): typeof UPLOAD_WAIT_TIMEOUT => UPLOAD_WAIT_TIMEOUT)
+        : null;
+
+    for (;;) {
+      const event: IteratorResult<WorkflowHookMessage> | symbol = timeoutSignal
+        ? await Promise.race([iterator.next(), timeoutSignal])
+        : await iterator.next();
+
+      if (typeof event === 'symbol') {
+        // Deadline elapsed: mark every still-outstanding file for reselect and
+        // pause. evaluate() then yields NeedsUserAction (never Completed).
+        for (const key of engine.order) {
+          const before = engine.files[key]!.status;
+          applyEvent(engine, { type: 'timeout', fileKey: key });
+          const after = engine.files[key]!.status;
+          if (after !== before) {
+            await writeStreamStep({ kind: 'fileState', localFileKey: key, status: after });
+          }
+        }
+        outcome = evaluate(engine);
+        await writeStreamStep(countsMessage(engine));
+        await warnWorkflowStep('sync.workflow.upload_wait_timeout', {
+          sourceId,
+          synchronizationId,
+          waitSeconds,
+        });
+        break;
+      }
+
+      if (event.done) break;
+      const msg = event.value;
       if (msg.type === 'cancel') {
         applyEvent(engine, { type: 'cancel' });
+        await logWorkflowStep('sync.workflow.cancel_requested', { sourceId, synchronizationId });
       } else if (attemptOf[msg.localFileKey] === msg.attemptId) {
         applyEvent(engine, { type: 'uploadResult', fileKey: msg.localFileKey, result: msg.status });
         await writeStreamStep({
@@ -325,6 +412,14 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
     kind: 'final',
     outcome: streamOutcome,
     synchronizationId,
+    lastRemoteStatus,
+    errorSummary,
+  });
+  await logWorkflowStep('sync.workflow.completed', {
+    sourceId,
+    synchronizationId,
+    outcome: summaryOutcome,
+    streamOutcome,
     lastRemoteStatus,
     errorSummary,
   });
