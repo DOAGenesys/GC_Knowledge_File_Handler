@@ -4,8 +4,9 @@
  * Browser-side run controller. Subscribes to the workflow's Server-Sent Events
  * status stream. On each non-secret `ticketReady` signal it fetches a FRESH
  * pre-signed upload ticket from /api/sync/upload-ticket (URL/headers held in
- * memory only, never persisted), PUTs the in-memory File directly to Genesys
- * with progress, then reports the result to the upload-callback route.
+ * memory only, never persisted), PUTs the in-memory File either directly to
+ * Genesys or through the signed same-origin proxy fallback, then reports the
+ * result to the upload-callback route.
  *
  * If the browser no longer holds a File (after refresh), the file is marked
  * NeedsReselect and the (non-secret) attempt id is retained so the user can
@@ -13,6 +14,7 @@
  * and never treats an unconfirmed completion as a successful run.
  */
 import { useCallback, useEffect, useRef } from 'react';
+import { CSRF_COOKIE, CSRF_HEADER } from '@/server/auth/cookies';
 import { api } from '@/lib/api-client';
 import { useApp } from './app-context';
 import type { ActiveRunFile, ActiveRunState, ActiveRunStatus, UiFileStatus } from './run-types';
@@ -23,6 +25,7 @@ interface Ticket {
   headers: Record<string, string>;
   callbackToken: string;
   attemptId: string;
+  proxyToken?: string;
 }
 
 interface TicketResponse {
@@ -30,10 +33,24 @@ interface TicketResponse {
   headers?: Record<string, string>;
   method?: 'PUT' | 'POST';
   callbackToken: string;
+  proxyToken?: string;
   ticketError?: string;
 }
 
 type UploadOutcome = 'Uploaded' | 'Failed' | 'CorsUnknown';
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.split('; ').find((c) => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
+function base64Json(value: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
 
 function uploadViaXhr(
   file: File,
@@ -62,14 +79,46 @@ function uploadViaXhr(
   });
 }
 
+function uploadViaProxy(
+  file: File,
+  ticket: Ticket,
+  onProgress: (fraction: number) => void,
+): Promise<UploadOutcome> {
+  return new Promise<UploadOutcome>((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', '/api/sync/proxy-upload', true);
+    const csrf = readCookie(CSRF_COOKIE);
+    if (csrf) xhr.setRequestHeader(CSRF_HEADER, csrf);
+    if (ticket.proxyToken) {
+      xhr.setRequestHeader('x-gkfsm-proxy-token', ticket.proxyToken);
+    } else {
+      xhr.setRequestHeader('x-gkfsm-upload-url', ticket.url);
+      xhr.setRequestHeader('x-gkfsm-upload-headers', base64Json(ticket.headers));
+    }
+    if (file.type) xhr.setRequestHeader('x-gkfsm-content-type', file.type);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300 ? 'Uploaded' : 'Failed');
+    xhr.onerror = () => resolve('Failed');
+    xhr.ontimeout = () => resolve('Failed');
+    xhr.onabort = () => resolve('Failed');
+    xhr.send(file);
+  });
+}
+
 export interface RunController {
   resumePending: (localFileKey: string) => void;
 }
 
 export function useRunController(): RunController {
-  const { activeRun, setActiveRun, updateVault, toast } = useApp();
+  const { activeRun, setActiveRun, updateVault, toast, prefs, readiness } = useApp();
   const filesRef = useRef<ActiveRunFile[]>([]);
   filesRef.current = activeRun?.files ?? [];
+  const uploadModeRef = useRef(prefs.uploadMode);
+  uploadModeRef.current = prefs.uploadMode;
+  const directUploadAvailableRef = useRef(false);
+  directUploadAvailableRef.current = readiness?.directUploadConnectSrcConfigured ?? false;
   const localRunKeyRef = useRef<string | null>(null);
   localRunKeyRef.current = activeRun?.localRunKey ?? null;
   const sourceIdRef = useRef<string | null>(null);
@@ -107,7 +156,10 @@ export function useRunController(): RunController {
         attemptId: ticket.attemptId,
         pendingTicketReady: null,
       });
-      const outcome = await uploadViaXhr(file, ticket, (frac) =>
+      const useProxy =
+        Boolean(ticket.proxyToken) &&
+        (uploadModeRef.current === 'proxy' || !directUploadAvailableRef.current);
+      const outcome = await (useProxy ? uploadViaProxy : uploadViaXhr)(file, ticket, (frac) =>
         patchFile(localFileKey, { progress: Math.round(frac * 100) }),
       );
       const uiStatus: UiFileStatus =
@@ -181,6 +233,7 @@ export function useRunController(): RunController {
             headers: resp.headers ?? {},
             callbackToken: resp.callbackToken,
             attemptId,
+            proxyToken: resp.proxyToken,
           },
           file,
         );

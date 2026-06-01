@@ -5,20 +5,22 @@ import { requireAuth, requireCsrf, requireFeature } from '@/server/auth/guards';
 import { jsonError, jsonOk } from '@/server/http/route-helpers';
 import { logger } from '@/server/logger';
 import { redactUrl } from '@/server/redact';
+import { verifyProxyUploadToken } from '@/server/workflow/proxy-upload-token';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
  * Streaming proxy-upload fallback (PRODUCT.md §8.3). Used ONLY when the browser
- * cannot PUT directly to a Genesys pre-signed URL because of CORS. Disabled by
- * default (ENABLE_PROXY_UPLOAD). Streams the request body straight to the
- * upstream URL without buffering the whole file or writing it to disk/storage.
+ * cannot PUT directly to a Genesys pre-signed URL because of CORS. Streams the
+ * request body straight to the upstream URL without buffering the whole file or
+ * writing it to disk/storage.
  *
- * SSRF guard: the upstream host MUST match the operator-configured
- * GENESYS_UPLOAD_CONNECT_SRC allowlist and MUST be https. The URL and signed
- * headers are passed per-request (already known to the browser) and are never
- * persisted or logged unredacted.
+ * SSRF guard: normal uploads must carry a short-lived server-signed proxy token
+ * minted from a Genesys-issued ticket. Legacy caller-provided URLs are accepted
+ * only when ENABLE_PROXY_UPLOAD is on and the host matches
+ * GENESYS_UPLOAD_CONNECT_SRC. URLs and signed headers are never persisted or
+ * logged unredacted.
  */
 function hostAllowed(targetUrl: string, patterns: string[]): boolean {
   let u: URL;
@@ -47,16 +49,33 @@ export async function PUT(req: NextRequest): Promise<Response> {
   try {
     await requireAuth(req);
     requireCsrf(req);
-    requireFeature('ENABLE_PROXY_UPLOAD');
 
     const cfg = getServerConfig();
-    if (cfg.uploadConnectSrc.length === 0) {
-      throw new AppError('APP_FORBIDDEN_FEATURE_DISABLED', { detail: 'no upload host allowlist' });
-    }
+    const signedProxy = await verifyProxyUploadToken(req.headers.get('x-gkfsm-proxy-token'));
+    let targetUrl = signedProxy?.url ?? '';
+    let signedHeaders = signedProxy?.headers ?? {};
 
-    const targetUrl = req.headers.get('x-gkfsm-upload-url') ?? '';
-    if (!hostAllowed(targetUrl, cfg.uploadConnectSrc)) {
-      throw new AppError('APP_BAD_REQUEST', { detail: 'upload host not allowlisted' });
+    if (!signedProxy) {
+      requireFeature('ENABLE_PROXY_UPLOAD');
+      if (cfg.uploadConnectSrc.length === 0) {
+        throw new AppError('APP_FORBIDDEN_FEATURE_DISABLED', {
+          detail: 'no upload host allowlist',
+        });
+      }
+
+      targetUrl = req.headers.get('x-gkfsm-upload-url') ?? '';
+      if (!hostAllowed(targetUrl, cfg.uploadConnectSrc)) {
+        throw new AppError('APP_BAD_REQUEST', { detail: 'upload host not allowlisted' });
+      }
+
+      const headerBlob = req.headers.get('x-gkfsm-upload-headers');
+      if (headerBlob) {
+        try {
+          signedHeaders = JSON.parse(Buffer.from(headerBlob, 'base64').toString('utf8'));
+        } catch {
+          throw new AppError('APP_BAD_REQUEST', { detail: 'bad upload headers' });
+        }
+      }
     }
 
     const limit = cfg.limits.proxyUploadMaxBytes;
@@ -65,16 +84,6 @@ export async function PUT(req: NextRequest): Promise<Response> {
       throw new AppError('APP_PAYLOAD_TOO_LARGE');
     }
 
-    // Reconstruct the signed upstream headers passed by the browser.
-    let signedHeaders: Record<string, string> = {};
-    const headerBlob = req.headers.get('x-gkfsm-upload-headers');
-    if (headerBlob) {
-      try {
-        signedHeaders = JSON.parse(Buffer.from(headerBlob, 'base64').toString('utf8'));
-      } catch {
-        throw new AppError('APP_BAD_REQUEST', { detail: 'bad upload headers' });
-      }
-    }
     const upstreamContentType = req.headers.get('x-gkfsm-content-type');
     if (upstreamContentType) signedHeaders['Content-Type'] = upstreamContentType;
 

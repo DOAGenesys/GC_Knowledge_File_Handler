@@ -5,6 +5,7 @@ import { validateFile } from '@/lib/validation';
 import { requireAuth, requireCsrf, requireGenesys } from '@/server/auth/guards';
 import { requestUploadUrl } from '@/server/genesys/client';
 import { signCallbackToken } from '@/server/workflow/callback-token';
+import { signProxyUploadToken } from '@/server/workflow/proxy-upload-token';
 import { jsonOk, readJsonBody, route } from '@/server/http/route-helpers';
 
 export const runtime = 'nodejs';
@@ -54,11 +55,13 @@ export const POST = route(async (req: NextRequest) => {
       tags: body.tags,
       metadata: body.metadata,
     });
+    const proxyToken = await signProxyUploadToken(ticket.url, ticket.headers);
     return jsonOk({
       url: ticket.url,
       headers: ticket.headers,
       method: 'PUT' as const,
       callbackToken,
+      proxyToken,
     });
   } catch (err) {
     // Surface the ticket-request failure WITH a valid callback token so the
