@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { BrandHeader } from '@/components/brand-header';
 import { Icon } from '@/components/icon';
 import { Btn, Card, Field, Spinner } from '@/components/ui';
 import { api, ApiError } from '@/lib/api-client';
@@ -64,27 +65,7 @@ export default function LoginPage() {
       </button>
 
       <div className="fade-in" style={{ width: 412, maxWidth: '90vw' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 26,
-            justifyContent: 'center',
-          }}
-        >
-          <div className="brand-mark" style={{ width: 38, height: 38 }}>
-            <Icon name="layers" size={20} strokeWidth={2} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: '-0.02em' }}>
-              Knowledge Fabric File Sync Manager
-            </div>
-            <div className="faint" style={{ fontSize: 12 }}>
-              Genesys Cloud · administrator sign-in
-            </div>
-          </div>
-        </div>
+        <BrandHeader layout="auth" subtitle="Genesys Cloud · administrator sign-in" />
 
         <Card pad style={{ padding: 28 }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>

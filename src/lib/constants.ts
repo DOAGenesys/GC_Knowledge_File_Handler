@@ -111,6 +111,9 @@ export const GENESYS_TOKEN_PATH = '/oauth/token';
 export const APP_NAME = 'Knowledge Fabric File Sync Manager';
 export const APP_SHORT_NAME = 'Sync Manager';
 
+/** Public path to the Genesys wordmark (served from /public/images). */
+export const GENESYS_LOGO_SRC = '/images/Genesys_logo.png';
+
 /** Genesys source `type` value this product manages. */
 export const FILE_UPLOAD_SOURCE_TYPE = 'FileUpload';
 

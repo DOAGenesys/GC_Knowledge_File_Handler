@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { BrandHeader } from './brand-header';
 import { Icon } from './icon';
 import { IconBtn, Tip } from './ui';
 import { useApp } from './app-context';
@@ -45,15 +46,7 @@ function Sidebar() {
   const { activeRun, vaultState, lockVault, toast } = useApp();
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-mark">
-          <Icon name="layers" size={19} strokeWidth={2} />
-        </div>
-        <div>
-          <div className="brand-name">Sync Manager</div>
-          <div className="brand-sub">Genesys Knowledge Fabric</div>
-        </div>
-      </div>
+      <BrandHeader layout="sidebar" />
       <nav
         className="scroll"
         style={{ overflowY: 'auto', flex: 1, margin: '0 -4px', padding: '0 4px' }}
