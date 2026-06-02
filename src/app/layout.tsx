@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { Hanken_Grotesk, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
-import { APP_NAME, GENESYS_LOGO_SRC } from '@/lib/constants';
+import { APP_NAME } from '@/lib/constants';
 
 const hanken = Hanken_Grotesk({
   subsets: ['latin'],
@@ -22,10 +22,6 @@ export const metadata: Metadata = {
   title: `${APP_NAME} · Genesys Cloud`,
   description: 'Database-free manager for Genesys Cloud Knowledge Fabric FileUpload sources.',
   robots: { index: false, follow: false },
-  icons: {
-    icon: GENESYS_LOGO_SRC,
-    apple: GENESYS_LOGO_SRC,
-  },
 };
 
 export const viewport: Viewport = {
