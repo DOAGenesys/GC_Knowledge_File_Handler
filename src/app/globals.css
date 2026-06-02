@@ -9,11 +9,12 @@
 
 :root {
   /* ---- Cool neutral surfaces (light) ---- */
-  --bg:           oklch(0.985 0.004 255);
-  --bg-grad:      oklch(0.958 0.007 262);
-  --surface:      oklch(1 0 0);
-  --surface-2:    oklch(0.984 0.004 255);
-  --surface-3:    oklch(0.965 0.007 258);
+  --white:        #fff9fd;
+  --bg:           var(--white);
+  --bg-grad:      color-mix(in oklab, var(--white) 91%, oklch(0.560 0.215 268) 9%);
+  --surface:      var(--white);
+  --surface-2:    color-mix(in oklab, var(--white) 96%, oklch(0.560 0.04 268) 4%);
+  --surface-3:    color-mix(in oklab, var(--white) 91%, oklch(0.560 0.06 268) 9%);
   --border:       oklch(0.916 0.007 258);
   --border-2:     oklch(0.872 0.009 258);
   --border-strong:oklch(0.80 0.011 258);
@@ -36,7 +37,7 @@
   /* brand & accent gradients (the signature look) */
   --grad-brand:  linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
   --grad-accent: linear-gradient(135deg, var(--accent-3) 0%, var(--accent) 48%, var(--accent-2) 100%);
-  --grad-sheen:  linear-gradient(180deg, oklch(1 0 0 / 0.65), oklch(1 0 0 / 0));
+  --grad-sheen:  linear-gradient(180deg, color-mix(in oklab, var(--white) 65%, transparent) 0%, transparent 100%);
 
   /* glow halos for primary surfaces */
   --glow-accent: 0 8px 24px -8px oklch(0.560 0.215 268 / 0.55);
