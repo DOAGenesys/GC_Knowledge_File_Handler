@@ -1360,8 +1360,10 @@ textarea:focus-visible {
   z-index: 60;
   background: oklch(0.2 0.02 264 / 0.42);
   backdrop-filter: blur(6px);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
   padding: 24px;
   animation: fade 0.16s ease forwards;
 }
@@ -1375,7 +1377,12 @@ textarea:focus-visible {
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 480px;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  margin: auto 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: pop 0.2s cubic-bezier(0.2, 0.8, 0.3, 1.1) forwards;
 }
 .modal.wide {
@@ -1383,6 +1390,7 @@ textarea:focus-visible {
 }
 .modal-body {
   padding: 24px;
+  overflow-y: auto;
 }
 .modal-head {
   display: flex;

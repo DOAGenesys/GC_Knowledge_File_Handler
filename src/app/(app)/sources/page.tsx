@@ -1702,42 +1702,26 @@ function ResetSourceModal({
 
     setResetting(true);
     setErr('');
-    let replacement: ValidatedSource | null = null;
     try {
-      const created = await api.post<{ source: ValidatedSource }>('/api/sources', {
-        name: replacementName,
-      });
-      replacement = created.source;
-      await api.del(`/api/sources/${encodeURIComponent(source.sourceId)}`, {
-        sourceId: source.sourceId,
-        confirmName: source.displayName,
-        purpose: 'reset',
-      });
-      await onReset(resetSourceRecord(source, replacement));
+      const result = await api.post<{ source: ValidatedSource; renamed: boolean }>(
+        `/api/sources/${encodeURIComponent(source.sourceId)}/reset`,
+        {
+          sourceId: source.sourceId,
+          confirmName: source.displayName,
+          replacementName,
+        },
+      );
+      await onReset(resetSourceRecord(source, result.source));
+      if (!result.renamed) {
+        toast({
+          tone: 'warning',
+          title: 'Reset completed with a temporary name',
+          body: 'The source was reset, but Genesys did not accept the final rename. Rename it from the details view when ready.',
+        });
+      }
     } catch (err2) {
       const e = err2 as ApiError;
-      if (replacement) {
-        try {
-          await api.del(`/api/sources/${encodeURIComponent(replacement.id)}`, {
-            sourceId: replacement.id,
-            confirmName: replacement.name ?? replacementName,
-            purpose: 'reset',
-          });
-          toast({
-            tone: 'danger',
-            title: 'Reset failed',
-            body: `${e.message} Replacement source was removed, so the original registry entry is unchanged.`,
-          });
-        } catch {
-          toast({
-            tone: 'warning',
-            title: 'Reset partially completed',
-            body: `${e.message} A replacement source may exist in Genesys; use Discovery before retrying.`,
-          });
-        }
-      } else {
-        toast({ tone: 'danger', title: 'Reset failed', body: e.message });
-      }
+      toast({ tone: 'danger', title: 'Reset failed', body: e.message });
       setErr(e.message);
     } finally {
       setResetting(false);

@@ -259,6 +259,53 @@ export async function createSource(
   );
 }
 
+const MAX_SOURCE_NAME_LENGTH = 200;
+
+function resetStagingName(finalName: string): string {
+  const suffix = ` - reset ${Date.now().toString(36)}`;
+  const base = finalName.trim();
+  const maxBaseLength = Math.max(1, MAX_SOURCE_NAME_LENGTH - suffix.length);
+  return `${base.slice(0, maxBaseLength).trimEnd()}${suffix}`;
+}
+
+export interface ResetSourceResult {
+  source: GenesysSourceDetail;
+  renamed: boolean;
+}
+
+export async function resetSource(
+  sourceId: string,
+  replacementName: string,
+  context: GenesysClientContext = {},
+): Promise<ResetSourceResult> {
+  const finalName = replacementName.trim();
+  const replacement = await createSource(resetStagingName(finalName), context);
+
+  try {
+    await deleteSource(sourceId, context);
+  } catch (err) {
+    try {
+      await deleteSource(replacement.id, context);
+    } catch (cleanupErr) {
+      logger.warn('genesys.source.reset.cleanup_failed', {
+        replacementSourceId: replacement.id,
+        cause: (cleanupErr as Error)?.name,
+      });
+    }
+    throw err;
+  }
+
+  try {
+    return { source: await updateSource(replacement.id, finalName, context), renamed: true };
+  } catch (err) {
+    logger.warn('genesys.source.reset.rename_failed', {
+      replacementSourceId: replacement.id,
+      cause: (err as Error)?.name,
+    });
+    return { source: replacement, renamed: false };
+  }
+}
+
 export async function startSynchronization(
   sourceId: string,
   type: SyncType,

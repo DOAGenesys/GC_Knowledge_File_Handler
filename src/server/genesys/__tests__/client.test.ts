@@ -32,6 +32,8 @@ async function fresh() {
       client.listSources(options, { authContext: authContext() }),
     getSource: (sourceId: string) => client.getSource(sourceId, { authContext: authContext() }),
     createSource: (name: string) => client.createSource(name, { authContext: authContext() }),
+    resetSource: (sourceId: string, replacementName: string) =>
+      client.resetSource(sourceId, replacementName, { authContext: authContext() }),
     startSynchronization: (sourceId: string, type: 'Incremental' | 'Full') =>
       client.startSynchronization(sourceId, type, { authContext: authContext() }),
     requestUploadUrl: (
@@ -113,6 +115,84 @@ describe('Genesys client', () => {
     const src = await client.createSource('KB');
     expect(src.id).toBe('new-src');
     expect(sentBody).toMatchObject({ name: 'KB', type: 'FileUpload', triggerType: 'Manual' });
+  });
+
+  it('resets a source by staging a unique replacement before deleting and renaming', async () => {
+    const calls: Array<{ method?: string; path: string; body?: Record<string, unknown> }> = [];
+    withToken((url, init) => {
+      const path = new URL(url).pathname;
+      const body = init.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : undefined;
+      calls.push({ method: init.method, path, body });
+
+      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
+        expect(body?.name).not.toBe('Worldline');
+        expect(body?.name).toContain('Worldline');
+        return json(200, {
+          id: 'replacement-src',
+          name: body?.name,
+          type: 'FileUpload',
+          status: 'Active',
+        });
+      }
+      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
+        return json(200, null);
+      }
+      if (init.method === 'PUT' && path === '/api/v2/knowledge/sources/replacement-src') {
+        expect(body).toMatchObject({ name: 'Worldline' });
+        return json(200, {
+          id: 'replacement-src',
+          name: 'Worldline',
+          type: 'FileUpload',
+          status: 'Active',
+        });
+      }
+      return json(500, { message: 'unexpected call' });
+    });
+
+    const client = await fresh();
+    const result = await client.resetSource('original-src', 'Worldline');
+
+    expect(result).toMatchObject({
+      renamed: true,
+      source: { id: 'replacement-src', name: 'Worldline', type: 'FileUpload' },
+    });
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'DELETE', 'PUT']);
+  });
+
+  it('cleans up the staged replacement when reset deletion fails', async () => {
+    const calls: Array<{ method?: string; path: string }> = [];
+    withToken((url, init) => {
+      const path = new URL(url).pathname;
+      calls.push({ method: init.method, path });
+
+      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
+        return json(200, {
+          id: 'replacement-src',
+          name: 'Worldline reset',
+          type: 'FileUpload',
+          status: 'Active',
+        });
+      }
+      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
+        return json(403, { message: 'delete denied' });
+      }
+      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/replacement-src') {
+        return json(200, null);
+      }
+      return json(500, { message: 'unexpected call' });
+    });
+
+    const client = await fresh();
+    await expect(client.resetSource('original-src', 'Worldline')).rejects.toMatchObject({
+      code: 'GENESYS_PERMISSION_DENIED',
+    });
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'POST /api/v2/knowledge/sources',
+      'DELETE /api/v2/knowledge/sources/original-src',
+      'DELETE /api/v2/knowledge/sources/replacement-src',
+    ]);
   });
 
   it('classifies an ambiguous create timeout as SOURCE_CREATE_UNKNOWN (no blind retry)', async () => {
