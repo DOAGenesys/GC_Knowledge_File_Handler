@@ -26,6 +26,9 @@ function StatusTile({
   const inner = (
     <Card
       pad
+      hover
+      hair
+      className="bento"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -36,12 +39,8 @@ function StatusTile({
     >
       <div className="between">
         <div
+          className="tile-ico"
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: 11,
-            display: 'grid',
-            placeItems: 'center',
             background: `var(--${tone}-soft)`,
             color: `var(--${tone})`,
           }}
@@ -60,7 +59,9 @@ function StatusTile({
         />
       </div>
       <div>
-        <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em' }}>{value}</div>
+        <div className="stat-num" style={{ fontSize: 28 }}>
+          {value}
+        </div>
         <div className="stat-lbl" style={{ marginTop: 4 }}>
           {label}
         </div>
@@ -134,17 +135,48 @@ export default function DashboardPage() {
 
   return (
     <div className="page">
-      <div className="page-head between" style={{ alignItems: 'flex-end' }}>
-        <div>
-          <div className="page-title">Welcome back</div>
-          <div className="page-desc">
-            Manage Genesys source files, start syncs, and review anything that needs attention.
+      <section className="hero">
+        <div className="between" style={{ alignItems: 'flex-end', gap: 24, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 280 }}>
+            <div className="eyebrow">Genesys Knowledge Sync</div>
+            <h2 className="hero-title" style={{ marginTop: 12 }}>
+              Command your source file operations
+            </h2>
+            <p className="hero-desc">
+              Manage Genesys FileUpload sources, launch browser-mediated syncs, and review ambiguous
+              outcomes without leaving the production workflow.
+            </p>
+            <div className="row" style={{ marginTop: 22, gap: 10, flexWrap: 'wrap' }}>
+              <Link href="/new" className="btn btn-primary btn-lg">
+                <Icon name="sync" size={16} /> Start a sync
+              </Link>
+              <Link href="/sources" className="btn btn-default btn-lg">
+                <Icon name="sources" size={16} /> Manage sources
+              </Link>
+            </div>
+          </div>
+          <div
+            className="row"
+            style={{ gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 420 }}
+          >
+            <Badge
+              tone={connected ? 'success' : 'warning'}
+              icon={connected ? 'shieldCheck' : 'alert'}
+            >
+              {connected ? 'Genesys connected' : 'Connection needs setup'}
+            </Badge>
+            <Badge
+              tone={persistentVault ? 'success' : 'warning'}
+              icon={persistentVault ? 'unlock' : 'alert'}
+            >
+              {persistentVault ? 'Local vault unlocked' : 'Session-only storage'}
+            </Badge>
+            <Badge tone={activeRun ? 'accent' : 'neutral'} icon={activeRun ? 'activity' : 'clock'}>
+              {activeRun ? 'Run in progress' : `${syncRuns.length} local runs`}
+            </Badge>
           </div>
         </div>
-        <Link href="/new" className="btn btn-primary btn-lg">
-          <Icon name="sync" size={16} /> Start a sync
-        </Link>
-      </div>
+      </section>
 
       {!connected && (
         <div style={{ marginBottom: 18 }}>
@@ -189,7 +221,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: '1.6fr 1fr', marginBottom: 18 }}>
-        <Card>
+        <Card hair>
           <div className="card-head">
             <Icon name="activity" size={17} style={{ color: 'var(--accent)' }} />
             <h3>Active sync run</h3>
@@ -238,7 +270,7 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        <Card pad>
+        <Card pad hair className="bento">
           <div className="row" style={{ marginBottom: 16 }}>
             <Icon name="gauge" size={17} style={{ color: 'var(--text-muted)' }} />
             <span style={{ fontWeight: 700, fontSize: 14.5 }}>At a glance</span>
@@ -309,7 +341,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <Card>
+      <Card hair>
         <div className="card-head">
           <Icon name="history" size={17} style={{ color: 'var(--text-muted)' }} />
           <h3>Recent runs</h3>

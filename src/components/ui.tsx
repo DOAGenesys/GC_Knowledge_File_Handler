@@ -66,14 +66,21 @@ export function Card({
   children,
   className = '',
   pad = false,
+  hover = false,
+  hair = false,
   ...rest
 }: {
   children: ReactNode;
   className?: string;
   pad?: boolean;
+  hover?: boolean;
+  hair?: boolean;
 } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`card ${pad ? 'card-pad' : ''} ${className}`} {...rest}>
+    <div
+      className={`card ${pad ? 'card-pad' : ''} ${hover ? 'card-hover' : ''} ${hair ? 'hair-top' : ''} ${className}`}
+      {...rest}
+    >
       {children}
     </div>
   );

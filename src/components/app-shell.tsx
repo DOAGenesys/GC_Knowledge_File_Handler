@@ -130,14 +130,12 @@ function VaultChip({ vaultState, onLock }: { vaultState: string; onLock: () => v
           };
   return (
     <button
-      className="card"
+      className="vault-chip"
       style={{
-        padding: '11px 12px',
         display: 'flex',
         gap: 10,
         alignItems: 'center',
         textAlign: 'left',
-        marginTop: 6,
       }}
       onClick={() => vaultState === 'unlocked' && onLock()}
       aria-label={meta.label}
