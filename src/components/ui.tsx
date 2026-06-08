@@ -319,12 +319,14 @@ export function Modal({
   onClose,
   children,
   wide,
+  compact,
   labelledBy,
 }: {
   open: boolean;
   onClose?: () => void;
   children: ReactNode;
   wide?: boolean;
+  compact?: boolean;
   labelledBy?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -377,7 +379,7 @@ export function Modal({
     >
       <div
         ref={ref}
-        className={`modal ${wide ? 'wide' : ''}`}
+        className={`modal ${wide ? 'wide' : ''} ${compact ? 'compact' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

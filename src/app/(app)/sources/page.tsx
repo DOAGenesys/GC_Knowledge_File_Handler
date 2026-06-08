@@ -1729,7 +1729,7 @@ function ResetSourceModal({
   };
 
   return (
-    <Modal open={!!source} onClose={onClose}>
+    <Modal open={!!source} onClose={onClose} compact>
       <div className="modal-body">
         <div className="modal-head">
           <div
@@ -1741,28 +1741,27 @@ function ResetSourceModal({
           <div style={{ flex: 1 }}>
             <h3 style={{ fontSize: 16 }}>Reset source</h3>
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-              Create an empty replacement, then delete the current source.
+              Replace this source with a new empty one.
             </div>
           </div>
         </div>
-        <div style={{ marginTop: 18 }}>
+        <div style={{ marginTop: 12 }}>
           <Callout tone="danger" icon="alertCircle" title="This removes the current content">
-            The current source is deleted in Genesys and replaced with a new empty source. Previous
-            sync history stays in this app, but future syncs use the new source.
+            Deletes the current Genesys source, then points future syncs to a new empty source.
           </Callout>
           {blocked ? (
-            <div style={{ marginTop: 14 }}>
+            <div style={{ marginTop: 12 }}>
               <Callout tone="warning" icon="alert" title="Blocked — sync in progress">
                 A sync for this source is active or ambiguous. Resolve or cancel it before
                 resetting.
               </Callout>
             </div>
           ) : (
-            <div className="grid" style={{ gap: 14, marginTop: 16 }}>
+            <div className="grid" style={{ gap: 10, marginTop: 12 }}>
               <Field
                 label="Replacement source name"
                 error={err}
-                hint="Optional. Leave unchanged to reuse the current display name."
+                hint="Leave unchanged to reuse the current display name."
               >
                 <input
                   className={`input ${err ? 'input-err' : ''}`}
