@@ -180,6 +180,31 @@ describe('Genesys client', () => {
     ]);
   });
 
+  it('maps a source-in-use delete conflict to SOURCE_IN_USE and does not create a replacement', async () => {
+    const calls: Array<{ method?: string; path: string }> = [];
+    withToken((url, init) => {
+      const path = new URL(url).pathname;
+      calls.push({ method: init.method, path });
+      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
+        return json(409, {
+          message: 'V3Source with id original-src is in use',
+          code: 'in.use',
+          status: 409,
+          entityName: 'V3Source',
+        });
+      }
+      return json(500, { message: 'unexpected call' });
+    });
+
+    const client = await fresh();
+    await expect(client.resetSource('original-src', 'Worldline')).rejects.toMatchObject({
+      code: 'SOURCE_IN_USE',
+    });
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'DELETE /api/v2/knowledge/sources/original-src',
+    ]);
+  });
+
   it('treats an already-deleted original as deletable and proceeds to create (retry resilience)', async () => {
     const calls: Array<{ method?: string; path: string }> = [];
     withToken((url, init) => {

@@ -401,6 +401,17 @@ export async function updateSource(
   );
 }
 
+function isSourceInUseConflict(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  const data = body as Record<string, unknown>;
+  return (
+    data.code === 'in.use' ||
+    String(data.message ?? '')
+      .toLowerCase()
+      .includes('in use')
+  );
+}
+
 export async function deleteSource(
   sourceId: string,
   context: GenesysClientContext = {},
@@ -414,6 +425,9 @@ export async function deleteSource(
   });
   if (result.kind === 'ok') return;
   if (result.kind === 'unknown') throw new AppError('SOURCE_DELETE_UNKNOWN');
+  if (result.status === 409 && isSourceInUseConflict(result.body)) {
+    throw new AppError('SOURCE_IN_USE', { detail: 'genesys source in use' });
+  }
   throw new AppError(
     mapStatusToCode(result.status, {
       unknownCode: 'SOURCE_DELETE_UNKNOWN',

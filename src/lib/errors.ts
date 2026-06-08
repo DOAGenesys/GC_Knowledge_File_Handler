@@ -34,6 +34,7 @@ export const ERROR_CODES = [
   'SOURCE_UPDATE_FAILED',
   'SOURCE_DELETE_FAILED',
   'SOURCE_DELETE_UNKNOWN',
+  'SOURCE_IN_USE',
   // Synchronization lifecycle
   'SYNC_START_FAILED',
   'SYNC_START_UNKNOWN',
@@ -194,6 +195,16 @@ export const ERROR_META: Record<ErrorCode, ErrorMeta> = {
     message: 'The deletion outcome is unknown.',
     nextAction: 'Verify the source no longer exists in Genesys before retrying.',
     httpStatus: 504,
+  },
+  SOURCE_IN_USE: {
+    code: 'SOURCE_IN_USE',
+    severity: 'error',
+    retryable: false,
+    message:
+      'This source is linked to other Genesys assets and cannot be reset yet. Detach or unlink it from Agent Copilot, AVAs, or other assets before resetting.',
+    nextAction:
+      'Detach or unlink this source from Agent Copilot, AVAs, or other Genesys assets before resetting it.',
+    httpStatus: 409,
   },
   SYNC_START_FAILED: {
     code: 'SYNC_START_FAILED',
