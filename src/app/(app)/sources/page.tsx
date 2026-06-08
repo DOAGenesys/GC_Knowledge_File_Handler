@@ -532,8 +532,17 @@ function SourceCard({
           <Tip text="Activity & details">
             <IconBtn icon="activity" size={15} label="Details" onClick={onDetail} />
           </Tip>
-          <IconBtn icon="edit" size={15} label="Rename" onClick={onRename} />
-          <IconBtn icon="archive" size={15} label="Archive" onClick={onArchive} />
+          <Tip text="Rename source">
+            <IconBtn icon="edit" size={15} label="Rename" onClick={onRename} />
+          </Tip>
+          <Tip text={s.archived ? 'Restore source' : 'Archive source'}>
+            <IconBtn
+              icon="archive"
+              size={15}
+              label={s.archived ? 'Restore' : 'Archive'}
+              onClick={onArchive}
+            />
+          </Tip>
         </div>
       </div>
     </Card>

@@ -16,23 +16,26 @@ export interface CookieOptions {
   maxAge: number;
 }
 
-/** Session cookie: HttpOnly + SameSite=Strict so it is never sent cross-site. */
+/**
+ * Session cookie: HttpOnly and SameSite=Lax so OAuth's cross-site callback can
+ * set the cookie and immediately redirect into the app.
+ */
 export function sessionCookieOptions(maxAgeSeconds: number, secure: boolean): CookieOptions {
-  return { httpOnly: true, sameSite: 'strict', secure, path: '/', maxAge: maxAgeSeconds };
+  return { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: maxAgeSeconds };
 }
 
 /**
  * CSRF cookie: readable by JS (NOT HttpOnly) for the double-submit pattern.
- * Same-origin policy prevents an attacker reading it; SameSite=Strict prevents
- * it riding along on cross-site requests.
+ * Same-origin policy prevents an attacker reading it; mutating routes also
+ * require a same-origin request plus a matching x-csrf-token header.
  */
 export function csrfCookieOptions(maxAgeSeconds: number, secure: boolean): CookieOptions {
-  return { httpOnly: false, sameSite: 'strict', secure, path: '/', maxAge: maxAgeSeconds };
+  return { httpOnly: false, sameSite: 'lax', secure, path: '/', maxAge: maxAgeSeconds };
 }
 
 /** Encrypted Genesys token session; only server route handlers can read it. */
 export function genesysAuthCookieOptions(maxAgeSeconds: number, secure: boolean): CookieOptions {
-  return { httpOnly: true, sameSite: 'strict', secure, path: '/', maxAge: maxAgeSeconds };
+  return { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: maxAgeSeconds };
 }
 
 /** OAuth callback comes from Genesys, so the temporary state cookie must be Lax. */
