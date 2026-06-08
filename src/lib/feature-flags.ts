@@ -13,6 +13,7 @@ export const FEATURE_KEYS = [
   'ENABLE_FULL_SYNC',
   'ENABLE_PROXY_UPLOAD',
   'ENABLE_SOURCE_UPDATE',
+  'ENABLE_SOURCE_RESET',
   'ENABLE_SOURCE_DELETE',
 ] as const;
 
@@ -34,6 +35,7 @@ export const FEATURE_DEFAULTS: FeatureFlags = {
   ENABLE_FULL_SYNC: false,
   ENABLE_PROXY_UPLOAD: false,
   ENABLE_SOURCE_UPDATE: false,
+  ENABLE_SOURCE_RESET: true,
   ENABLE_SOURCE_DELETE: false,
 };
 
@@ -94,6 +96,13 @@ export const FEATURE_META: readonly FeatureMeta[] = [
     label: 'Update source',
     desc: 'Edit FileUpload-safe source fields',
     endpoint: 'PUT /knowledge/sources/{id}',
+    danger: true,
+  },
+  {
+    key: 'ENABLE_SOURCE_RESET',
+    label: 'Reset source',
+    desc: 'Replace an existing source with a new empty source',
+    endpoint: 'POST /knowledge/sources + DELETE /knowledge/sources/{id}',
     danger: true,
   },
   {

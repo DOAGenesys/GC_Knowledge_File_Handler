@@ -44,11 +44,11 @@ export const PUT = route(async (req: NextRequest, ctx) => {
 export const DELETE = route(async (req: NextRequest, ctx) => {
   await requireAuth(req);
   requireCsrf(req);
-  requireFeature('ENABLE_SOURCE_DELETE');
   requireGenesys();
   const { sourceId } = await ctx.params;
   const id = parseSourceId(sourceId);
   const body = await readJsonBody(req, deleteSourceBodySchema, { maxBytes: 4096 });
+  requireFeature(body.purpose === 'reset' ? 'ENABLE_SOURCE_RESET' : 'ENABLE_SOURCE_DELETE');
   if (body.sourceId !== id || !body.confirmName.trim()) {
     throw new AppError('APP_BAD_REQUEST', { detail: 'confirmation mismatch' });
   }

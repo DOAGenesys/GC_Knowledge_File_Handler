@@ -146,7 +146,7 @@ function RemoteStatusPill({ status }: { status: string | null | undefined }) {
 /* ================================================================== */
 
 export default function SourcesPage() {
-  const { sources, features, updateVault, toast } = useApp();
+  const { sources, features, updateVault, toast, activeRun } = useApp();
   const router = useRouter();
 
   const [view, setView] = useState<'registry' | 'discovery'>('registry');
@@ -155,10 +155,12 @@ export default function SourcesPage() {
   const [showExisting, setShowExisting] = useState(false);
   const [renameTarget, setRenameTarget] = useState<SourceRecord | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<SourceRecord | null>(null);
+  const [resetTarget, setResetTarget] = useState<SourceRecord | null>(null);
   const [detail, setDetail] = useState<SourceRecord | null>(null);
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
 
   const visible = sources.filter((s) => (showArchived ? true : !s.archived));
+  const canResetSources = features.ENABLE_SOURCE_CREATION && features.ENABLE_SOURCE_RESET;
 
   const refreshStatus = async (key: string) => {
     const rec = sources.find((s) => s.localSourceKey === key);
@@ -243,6 +245,21 @@ export default function SourcesPage() {
     });
   };
 
+  const applyReset = async (replacement: SourceRecord) => {
+    await updateVault((draft) => {
+      const idx = draft.sourceRegistry.findIndex(
+        (x) => x.localSourceKey === replacement.localSourceKey,
+      );
+      if (idx >= 0) draft.sourceRegistry[idx] = replacement;
+    });
+    setDetail((d) => (d && d.localSourceKey === replacement.localSourceKey ? replacement : d));
+    toast({
+      tone: 'success',
+      title: 'Source reset',
+      body: `${replacement.displayName} is empty and ready for new syncs.`,
+    });
+  };
+
   const tabs: { value: 'registry' | 'discovery'; label: string }[] = [
     { value: 'registry', label: 'Your sources' },
   ];
@@ -296,6 +313,7 @@ export default function SourcesPage() {
               onRefresh={() => void refreshStatus(s.localSourceKey)}
               onRename={() => setRenameTarget(s)}
               onArchive={() => setArchiveTarget(s)}
+              onReset={canResetSources ? () => setResetTarget(s) : undefined}
               onDetail={() => setDetail(s)}
               onSync={() => router.push('/new')}
             />
@@ -361,6 +379,18 @@ export default function SourcesPage() {
         confirmLabel={archiveTarget?.archived ? 'Restore' : 'Archive'}
       />
 
+      {canResetSources && (
+        <ResetSourceModal
+          source={resetTarget}
+          activeRun={activeRun}
+          onClose={() => setResetTarget(null)}
+          onReset={async (replacement) => {
+            setResetTarget(null);
+            await applyReset(replacement);
+          }}
+        />
+      )}
+
       <SourceDetailDrawer
         source={detail}
         onClose={() => setDetail(null)}
@@ -391,20 +421,7 @@ export default function SourcesPage() {
             body: 'The source was deleted in Genesys and removed from this app.',
           });
         }}
-        onReset={async (replacement) => {
-          await updateVault((draft) => {
-            const idx = draft.sourceRegistry.findIndex(
-              (x) => x.localSourceKey === replacement.localSourceKey,
-            );
-            if (idx >= 0) draft.sourceRegistry[idx] = replacement;
-          });
-          setDetail(replacement);
-          toast({
-            tone: 'success',
-            title: 'Source reset',
-            body: `${replacement.displayName} is empty and ready for new syncs.`,
-          });
-        }}
+        onReset={applyReset}
       />
     </div>
   );
@@ -420,6 +437,7 @@ function SourceCard({
   onRefresh,
   onRename,
   onArchive,
+  onReset,
   onDetail,
   onSync,
 }: {
@@ -428,6 +446,7 @@ function SourceCard({
   onRefresh: () => void;
   onRename: () => void;
   onArchive: () => void;
+  onReset?: () => void;
   onDetail: () => void;
   onSync: () => void;
 }) {
@@ -519,6 +538,13 @@ function SourceCard({
               Sync
             </Btn>
           )}
+          {!s.archived && onReset ? (
+            <Tip text="Reset source">
+              <Btn variant="danger-solid" size="sm" icon="rotate" onClick={onReset}>
+                Reset
+              </Btn>
+            </Tip>
+          ) : null}
           <Tip text="Refresh status from Genesys">
             <IconBtn
               icon={refreshing ? 'loader' : 'refresh'}
@@ -863,7 +889,7 @@ function SourceDetailDrawer({
 
   if (!source) return null;
   const tm = typeMeta(source.sourceType);
-  const resetOn = features.ENABLE_SOURCE_CREATION && features.ENABLE_SOURCE_DELETE;
+  const resetOn = features.ENABLE_SOURCE_CREATION && features.ENABLE_SOURCE_RESET;
   const dangerOn = features.ENABLE_SOURCE_UPDATE || features.ENABLE_SOURCE_DELETE || resetOn;
 
   const selectSync = async (row: GenesysSynchronizationSummary) => {
@@ -1702,6 +1728,7 @@ function ResetSourceModal({
       await api.del(`/api/sources/${encodeURIComponent(source.sourceId)}`, {
         sourceId: source.sourceId,
         confirmName: source.displayName,
+        purpose: 'reset',
       });
       await onReset(resetSourceRecord(source, replacement));
     } catch (err2) {
@@ -1711,6 +1738,7 @@ function ResetSourceModal({
           await api.del(`/api/sources/${encodeURIComponent(replacement.id)}`, {
             sourceId: replacement.id,
             confirmName: replacement.name ?? replacementName,
+            purpose: 'reset',
           });
           toast({
             tone: 'danger',

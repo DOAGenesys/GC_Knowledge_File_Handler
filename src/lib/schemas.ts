@@ -131,7 +131,11 @@ export const updateSourceBodySchema = z.object({ name: z.string().min(1).max(200
 
 /** Delete-source request body (feature-flagged). Typed confirmation required. */
 export const deleteSourceBodySchema = z
-  .object({ sourceId: uuidSchema, confirmName: z.string().min(1).max(200) })
+  .object({
+    sourceId: uuidSchema,
+    confirmName: z.string().min(1).max(200),
+    purpose: z.enum(['reset']).optional(),
+  })
   .strict();
 
 /* ------------------------------------------------------------------ */
