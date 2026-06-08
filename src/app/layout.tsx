@@ -20,7 +20,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: `${APP_NAME} · Genesys Cloud`,
-  description: 'Database-free manager for Genesys Cloud Knowledge Fabric FileUpload sources.',
+  description: 'Manage Genesys Cloud source file syncs.',
   robots: { index: false, follow: false },
 };
 

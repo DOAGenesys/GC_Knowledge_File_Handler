@@ -4,6 +4,7 @@ import { startSyncInputSchema } from '@/lib/schemas';
 import { getServerConfig } from '@/server/config';
 import { AppError } from '@/lib/errors';
 import { requireAuth, requireCsrf, requireFeature, requireGenesys } from '@/server/auth/guards';
+import { getEncryptedGenesysAuthForWorkflow } from '@/server/genesys/oauth';
 import { jsonOk, readJsonBody, route } from '@/server/http/route-helpers';
 import { syncWorkflow } from '@/workflows/sync-workflow';
 
@@ -17,6 +18,7 @@ export const POST = route(async (req: NextRequest) => {
   requireGenesys();
 
   const input = await readJsonBody(req, startSyncInputSchema, { maxBytes: 2_000_000 });
+  const genesysAuth = await getEncryptedGenesysAuthForWorkflow();
 
   if (input.sourceMode === 'create') requireFeature('ENABLE_SOURCE_CREATION');
   if (input.syncType === 'Full') {
@@ -30,6 +32,6 @@ export const POST = route(async (req: NextRequest) => {
     throw new AppError('APP_BAD_REQUEST', { detail: 'too many files' });
   }
 
-  const run = await start(syncWorkflow, [input]);
+  const run = await start(syncWorkflow, [{ ...input, genesysAuth }]);
   return jsonOk({ workflowRunId: run.runId, localRunKey: input.localRunKey }, { status: 202 });
 });

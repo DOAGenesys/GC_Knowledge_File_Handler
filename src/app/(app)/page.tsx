@@ -137,8 +137,7 @@ export default function DashboardPage() {
         <div>
           <div className="page-title">Welcome back</div>
           <div className="page-desc">
-            Orchestrate file-based Genesys Knowledge syncs — validated, fingerprinted, and completed
-            only when every file lands.
+            Manage Genesys source files, start syncs, and review anything that needs attention.
           </div>
         </div>
         <Link href="/new" className="btn btn-primary btn-lg">
@@ -149,8 +148,7 @@ export default function DashboardPage() {
       {!connected && (
         <div style={{ marginBottom: 18 }}>
           <Callout tone="warning" title="Genesys is not configured">
-            Set GENESYS_CLIENT_ID, GENESYS_CLIENT_SECRET and GENESYS_REGION_API_HOST to enable
-            source discovery and sync. Run the checks in Diagnostics.
+            Ask your administrator to finish the Genesys connection settings, then run Diagnostics.
           </Callout>
         </div>
       )}
@@ -161,15 +159,15 @@ export default function DashboardPage() {
           tone={connected ? 'success' : 'warning'}
           value={connected ? 'Connected' : 'Not configured'}
           label="Genesys Cloud"
-          sub={readiness?.regionHostValid ? 'Region host valid' : 'Check region host'}
+          sub={readiness?.regionHostValid ? 'Connection ready' : 'Check connection settings'}
           href="/diagnostics"
         />
         <StatusTile
           icon="lock"
           tone="success"
           value="Unlocked"
-          label="Local vault"
-          sub="AES-GCM · key in memory"
+          label="Local data"
+          sub="Available on this device"
           href="/settings"
         />
         <StatusTile
@@ -177,15 +175,15 @@ export default function DashboardPage() {
           tone="success"
           value="Protected"
           label="App access"
-          sub="Single-admin sign-in enforced"
+          sub="Sign-in required"
           href="/diagnostics"
         />
         <StatusTile
           icon="database"
           tone="info"
-          value="None"
-          label="App database"
-          sub="localStorage vault only"
+          value="Local"
+          label="Saved data"
+          sub="Stored on this device"
         />
       </div>
 
@@ -223,8 +221,7 @@ export default function DashboardPage() {
                 className="muted"
                 style={{ fontSize: 13, margin: '6px auto 18px', maxWidth: 360 }}
               >
-                Select a source, choose files, and the workflow validates, requests upload URLs, and
-                completes the round only when all files succeed.
+                Select a source, choose files, and the app will guide the sync from start to finish.
               </div>
               <div className="row" style={{ justifyContent: 'center', gap: 10 }}>
                 <Link href="/new" className="btn btn-primary">
@@ -324,7 +321,7 @@ export default function DashboardPage() {
           {FEATURE_META.map((f) => {
             const on = features[f.key];
             return (
-              <Tipless key={f.key} text={`${f.endpoint}${on ? '' : ' · disabled'}`}>
+              <Tipless key={f.key} text={`${f.desc}${on ? '' : ' · Disabled'}`}>
                 <span
                   className={`badge badge-${on ? (f.danger ? 'danger' : 'success') : 'neutral'}`}
                   style={{ opacity: on ? 1 : 0.6 }}
@@ -348,7 +345,7 @@ export default function DashboardPage() {
         </div>
         {syncRuns.length === 0 ? (
           <div style={{ padding: '32px 24px', textAlign: 'center' }} className="faint">
-            No runs yet. Start a sync to see redacted local summaries here.
+            No runs yet. Start a sync to see recent activity here.
           </div>
         ) : (
           <table className="table">

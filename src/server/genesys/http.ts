@@ -1,10 +1,8 @@
 import 'server-only';
 
-import { AppError } from '@/lib/errors';
-import { getServerConfig } from '../config';
 import { logger } from '../logger';
 import { redactUrl } from '../redact';
-import { getAccessToken, __resetTokenCache } from './oauth';
+import { getAccessToken, type GenesysAuthContext } from './oauth';
 import {
   backoffMs,
   classifyResponseStatus,
@@ -29,6 +27,8 @@ export interface GenesysRequestOptions<T> {
   parse: (json: unknown) => T;
   timeoutMs?: number;
   maxAttempts?: number;
+  authContext?: GenesysAuthContext;
+  onAuthContextUpdated?: (context: GenesysAuthContext) => void;
 }
 
 function buildUrl(
@@ -55,18 +55,18 @@ async function sleep(ms: number): Promise<void> {
  * ambiguous outcome (returned as `{ kind: 'unknown' }`).
  */
 export async function genesysRequest<T>(opts: GenesysRequestOptions<T>): Promise<GenesysResult<T>> {
-  const cfg = getServerConfig();
-  if (!cfg.genesys.configured || !cfg.genesys.regionHost) {
-    throw new AppError('GENESYS_NOT_CONFIGURED');
-  }
-  const url = buildUrl(cfg.genesys.regionHost, opts.path, opts.query);
   const maxAttempts = opts.maxAttempts ?? (opts.idempotency === 'idempotent' ? 4 : 1);
   const timeoutMs = opts.timeoutMs ?? 20_000;
+  let authContext = opts.authContext;
+  const cookieBackedAuth = !opts.authContext;
 
   let refreshedAuth = false;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const token = await getAccessToken();
+    const auth = await getAccessToken(authContext);
+    authContext = auth.authContext;
+    if (auth.refreshed) opts.onAuthContextUpdated?.(auth.authContext);
+    const url = buildUrl(auth.regionHost, opts.path, opts.query);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -75,7 +75,7 @@ export async function genesysRequest<T>(opts: GenesysRequestOptions<T>): Promise
       res = await fetch(url, {
         method: opts.method,
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${auth.accessToken}`,
           Accept: 'application/json',
           ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         },
@@ -111,7 +111,11 @@ export async function genesysRequest<T>(opts: GenesysRequestOptions<T>): Promise
     // so it can only happen once.
     if (res.status === 401 && !refreshedAuth) {
       refreshedAuth = true;
-      __resetTokenCache();
+      const refreshed = await getAccessToken(cookieBackedAuth ? undefined : authContext, {
+        forceRefresh: true,
+      });
+      authContext = refreshed.authContext;
+      opts.onAuthContextUpdated?.(refreshed.authContext);
       attempt -= 1;
       continue;
     }

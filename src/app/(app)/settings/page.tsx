@@ -25,15 +25,7 @@ import { ApiError } from '@/lib/api-client';
 import { FEATURE_META } from '@/lib/feature-flags';
 import type { SyncType } from '@/lib/types';
 
-/** Env vars whose presence the readiness payload reports. */
-const ENV_VARS = [
-  'GENESYS_CLIENT_ID',
-  'GENESYS_CLIENT_SECRET',
-  'GENESYS_REGION_API_HOST',
-  'ADMIN_USERNAME',
-  'ADMIN_PASSWORD',
-  'APP_SESSION_SECRET',
-] as const;
+const READINESS_ITEMS = [{ key: 'APP_SESSION_SECRET', label: 'Secure sign-in' }] as const;
 
 function SettingRow({
   title,
@@ -92,9 +84,7 @@ function EnvRow({ ok, label, value }: { ok: boolean; label: string; value: strin
       <span style={{ color: ok ? 'var(--success)' : 'var(--danger)', display: 'inline-flex' }}>
         <Icon name={ok ? 'checkCircle' : 'xCircle'} size={15} />
       </span>
-      <span className="mono" style={{ fontSize: 11.5, fontWeight: 600 }}>
-        {label}
-      </span>
+      <span style={{ fontSize: 11.5, fontWeight: 600 }}>{label}</span>
       <span className="faint" style={{ fontSize: 11.5, marginLeft: 'auto' }}>
         {value}
       </span>
@@ -136,8 +126,8 @@ export default function SettingsPage() {
   const sessionLive = vaultState === 'unlocked';
   const lockedHint =
     vaultState === 'ephemeral'
-      ? 'Storage is unavailable, so the vault runs in ephemeral mode. These actions are disabled.'
-      : 'Unlock the vault to use this action.';
+      ? 'Storage is unavailable, so these actions are disabled.'
+      : 'Unlock your local data to use this action.';
 
   const closePassModal = () => {
     setShowPass(false);
@@ -163,7 +153,7 @@ export default function SettingsPage() {
       toast({
         tone: 'success',
         title: 'Passphrase changed',
-        body: 'Vault re-encrypted with the new key.',
+        body: 'Your local data now uses the new passphrase.',
       });
     } catch (err) {
       const wrong = err instanceof Error && err.name === 'WrongPassphraseError';
@@ -183,7 +173,11 @@ export default function SettingsPage() {
     try {
       const blob = exportVault();
       if (!blob) {
-        toast({ tone: 'warning', title: 'Nothing to export', body: 'Unlock the vault first.' });
+        toast({
+          tone: 'warning',
+          title: 'Nothing to export',
+          body: 'Unlock your local data first.',
+        });
         return;
       }
       const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' }));
@@ -194,7 +188,7 @@ export default function SettingsPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast({ tone: 'success', title: 'Vault exported', body: 'gkfsm-vault.enc' });
+      toast({ tone: 'success', title: 'Backup exported', body: 'Keep it with your passphrase.' });
     } catch {
       toast({ tone: 'danger', title: 'Export failed', body: 'Could not build the export file.' });
     }
@@ -228,8 +222,8 @@ export default function SettingsPage() {
       closeImportModal();
       toast({
         tone: 'success',
-        title: 'Vault imported',
-        body: 'Restored from the encrypted backup.',
+        title: 'Backup imported',
+        body: 'Your local data was restored.',
       });
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Wrong passphrase or corrupt file.';
@@ -250,7 +244,7 @@ export default function SettingsPage() {
     toast({
       tone: 'info',
       title: 'Local data cleared',
-      body: 'Active server-side syncs can still be cancelled.',
+      body: 'Any active syncs can still be cancelled from this browser session.',
     });
   };
 
@@ -268,18 +262,17 @@ export default function SettingsPage() {
       <div className="page-head">
         <div className="page-title">Settings</div>
         <div className="page-desc">
-          Preferences and vault controls. Everything here is stored encrypted in your browser —
-          there is no account and no server-side database.
+          Manage preferences, backups, and which capabilities are available in this deployment.
         </div>
       </div>
 
       <div className="grid" style={{ gap: 18 }}>
-        {/* 1) Local vault ------------------------------------------------- */}
+        {/* 1) Local storage ----------------------------------------------- */}
         <Card>
           <div className="card-head">
             <Icon name="lock" size={16} style={{ color: 'var(--accent)' } as CSSProperties} />
-            <h3>Local vault</h3>
-            <span className="sub">AES-GCM · PBKDF2-SHA-256</span>
+            <h3>Local data</h3>
+            <span className="sub">Protected on this device</span>
           </div>
           <div className="card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {!sessionLive ? (
@@ -291,8 +284,8 @@ export default function SettingsPage() {
             ) : null}
 
             <SettingRow
-              title="Lock vault now"
-              desc="Clears the in-memory decryption key. You'll re-unlock on next action."
+              title="Lock local data now"
+              desc="Locks saved sources and sync history until you enter your passphrase again."
             >
               <Btn variant="default" size="sm" icon="lock" onClick={onLock} disabled={!sessionLive}>
                 Lock
@@ -301,7 +294,7 @@ export default function SettingsPage() {
 
             <SettingRow
               title="Change passphrase"
-              desc="Re-derives the key and re-encrypts the vault envelope."
+              desc="Use a new passphrase for saved sources and sync history."
             >
               <Btn
                 variant="default"
@@ -315,8 +308,8 @@ export default function SettingsPage() {
             </SettingRow>
 
             <SettingRow
-              title="Export encrypted vault"
-              desc="Download the encrypted blob — safe to back up. Keep your passphrase separate."
+              title="Export backup"
+              desc="Download a protected backup. Keep your passphrase separate."
             >
               <Btn
                 variant="default"
@@ -329,10 +322,7 @@ export default function SettingsPage() {
               </Btn>
             </SettingRow>
 
-            <SettingRow
-              title="Import encrypted vault"
-              desc="Restore from a previously exported blob."
-            >
+            <SettingRow title="Import backup" desc="Restore from a previously exported backup.">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -347,7 +337,7 @@ export default function SettingsPage() {
 
             <SettingRow
               title="Clear local data"
-              desc="Removes the vault and all local summaries. Cannot be undone."
+              desc="Removes saved sources, preferences, and run history from this browser."
               danger
               last
             >
@@ -358,19 +348,18 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* 2) Endpoint features ------------------------------------------ */}
+        {/* 2) Capabilities ------------------------------------------------ */}
         <Card>
           <div className="card-head">
             <Icon name="layers" size={16} style={{ color: 'var(--text-muted)' } as CSSProperties} />
-            <h3>Endpoint features</h3>
-            <span className="sub">Least-privilege · controlled by deployment</span>
+            <h3>Available capabilities</h3>
+            <span className="sub">Controlled by deployment</span>
           </div>
           <div className="card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             <div style={{ marginBottom: 14 }}>
-              <Callout tone="info" icon="shield" title="Capabilities are environment-controlled">
-                These flags are resolved server-side from environment variables and follow
-                least-privilege defaults. The server independently re-checks each flag on every
-                request — toggling here cannot grant access.
+              <Callout tone="info" icon="shield" title="Capabilities are managed by your admin">
+                This list shows what is enabled for the deployment. Changes must be made by an
+                administrator.
               </Callout>
             </div>
 
@@ -411,9 +400,6 @@ export default function SettingsPage() {
                     >
                       {f.desc}
                     </div>
-                    <div className="tag-mini" style={{ marginTop: 6, display: 'inline-block' }}>
-                      {f.endpoint}
-                    </div>
                   </div>
                   <div
                     className="row"
@@ -430,10 +416,10 @@ export default function SettingsPage() {
                     <Toggle
                       checked={on}
                       onChange={() => undefined}
-                      label={`${f.label} (${on ? 'enabled' : 'disabled'}, configured by deployment)`}
+                      label={`${f.label} (${on ? 'enabled' : 'disabled'})`}
                     />
                     <span className="faint" style={{ fontSize: 11 }}>
-                      Configured by deployment env
+                      Managed by admin
                     </span>
                   </div>
                 </div>
@@ -465,7 +451,7 @@ export default function SettingsPage() {
 
             <SettingRow
               title="Upload path"
-              desc="Direct browser→Genesys is preferred. Proxy is a streaming fallback for CORS-blocked URLs."
+              desc="Direct upload is preferred. Use fallback only if uploads have trouble."
             >
               <Segmented<'direct' | 'proxy'>
                 value={prefs.uploadMode}
@@ -479,7 +465,7 @@ export default function SettingsPage() {
 
             <SettingRow
               title="Auto-suggest safe renames"
-              desc="Offer sanitized upload names when a file name breaks Genesys constraints."
+              desc="Offer safer file names when a selected file name is not accepted."
             >
               <Toggle
                 checked={prefs.autoRename}
@@ -551,46 +537,44 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* 5) Environment readiness ------------------------------------- */}
+        {/* 5) Readiness --------------------------------------------------- */}
         <Card pad>
           <div className="row" style={{ gap: 8, marginBottom: 14 }}>
             <Icon name="server" size={16} style={{ color: 'var(--text-muted)' } as CSSProperties} />
-            <span style={{ fontWeight: 700, fontSize: 14.5 }}>Environment readiness</span>
+            <span style={{ fontWeight: 700, fontSize: 14.5 }}>Connection readiness</span>
           </div>
 
           {readiness ? (
             <>
               <div className="grid g2" style={{ gap: 10 }}>
-                {ENV_VARS.map((name) => {
-                  const present = !missing.includes(name);
+                {READINESS_ITEMS.map((item) => {
+                  const present = !missing.includes(item.key);
                   return (
                     <EnvRow
-                      key={name}
+                      key={item.key}
                       ok={present}
-                      label={name}
-                      value={present ? 'present' : 'MISSING'}
+                      label={item.label}
+                      value={present ? 'Ready' : 'Missing'}
                     />
                   );
                 })}
                 <EnvRow
-                  ok={readiness.regionHostValid}
-                  label="Region host valid"
-                  value={readiness.regionHostValid ? 'valid' : 'invalid'}
+                  ok={readiness.genesysConfigured}
+                  label="Genesys sign-in"
+                  value={readiness.genesysConfigured ? 'Ready' : 'Sign in required'}
                 />
                 <EnvRow ok label="Environment" value={readiness.environmentLabel || '—'} />
                 <EnvRow ok label="App version" value={readiness.appVersion || '—'} />
               </div>
               <div style={{ marginTop: 14 }}>
                 <Callout tone="info" icon="shield">
-                  Secret values are never displayed — only presence and validity are checked. Run
-                  full checks in Diagnostics.
+                  Sensitive values are never displayed here. Run full checks in Diagnostics.
                 </Callout>
               </div>
             </>
           ) : (
             <Callout tone="warning" icon="alert">
-              Environment readiness is unavailable. The server did not return a features/readiness
-              payload.
+              Connection readiness is unavailable. Try refreshing or run Diagnostics.
             </Callout>
           )}
         </Card>
@@ -606,9 +590,8 @@ export default function SettingsPage() {
         title="Clear all local data?"
         body={
           <>
-            This permanently removes your encrypted vault, source registry, and run history from
-            this browser. <strong>Export first</strong> if you want a backup. Server-side Genesys
-            state is unaffected.
+            This permanently removes saved sources, preferences, and run history from this browser.{' '}
+            <strong>Export first</strong> if you want a backup. Genesys sources are unaffected.
           </>
         }
         confirmLabel="Clear everything"
@@ -617,7 +600,7 @@ export default function SettingsPage() {
       {/* Change-passphrase modal ----------------------------------------- */}
       <Modal open={showPass} onClose={closePassModal}>
         <div className="modal-body">
-          <h3 style={{ fontSize: 16, marginBottom: 16 }}>Change vault passphrase</h3>
+          <h3 style={{ fontSize: 16, marginBottom: 16 }}>Change passphrase</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Field label="Current passphrase">
               <input
@@ -680,12 +663,12 @@ export default function SettingsPage() {
       {/* Import-passphrase modal ----------------------------------------- */}
       <Modal open={importBlob != null} onClose={closeImportModal}>
         <div className="modal-body">
-          <h3 style={{ fontSize: 16, marginBottom: 16 }}>Import encrypted vault</h3>
+          <h3 style={{ fontSize: 16, marginBottom: 16 }}>Import backup</h3>
           <div className="muted" style={{ fontSize: 13, lineHeight: 1.55, marginBottom: 14 }}>
-            Importing replaces the vault in this browser. Enter the passphrase used when the backup
+            Importing replaces local data in this browser. Enter the passphrase used when the backup
             was exported.
           </div>
-          <Field label="Vault passphrase">
+          <Field label="Backup passphrase">
             <input
               className="input mono"
               type="password"
@@ -710,7 +693,7 @@ export default function SettingsPage() {
             onClick={onImport}
             disabled={importPass.length === 0 || importBusy}
           >
-            {importBusy ? 'Importing…' : 'Import vault'}
+            {importBusy ? 'Importing…' : 'Import backup'}
           </Btn>
         </div>
       </Modal>

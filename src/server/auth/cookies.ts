@@ -5,6 +5,8 @@
 export const SESSION_COOKIE = 'gkfsm_session';
 export const CSRF_COOKIE = 'gkfsm_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
+export const GENESYS_AUTH_COOKIE = 'gkfsm_genesys_auth';
+export const OAUTH_STATE_COOKIE = 'gkfsm_oauth_state';
 
 export interface CookieOptions {
   httpOnly: boolean;
@@ -26,6 +28,16 @@ export function sessionCookieOptions(maxAgeSeconds: number, secure: boolean): Co
  */
 export function csrfCookieOptions(maxAgeSeconds: number, secure: boolean): CookieOptions {
   return { httpOnly: false, sameSite: 'strict', secure, path: '/', maxAge: maxAgeSeconds };
+}
+
+/** Encrypted Genesys token session; only server route handlers can read it. */
+export function genesysAuthCookieOptions(maxAgeSeconds: number, secure: boolean): CookieOptions {
+  return { httpOnly: true, sameSite: 'strict', secure, path: '/', maxAge: maxAgeSeconds };
+}
+
+/** OAuth callback comes from Genesys, so the temporary state cookie must be Lax. */
+export function oauthStateCookieOptions(maxAgeSeconds: number, secure: boolean): CookieOptions {
+  return { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: maxAgeSeconds };
 }
 
 /** Expired cookie used to clear a value on logout. */

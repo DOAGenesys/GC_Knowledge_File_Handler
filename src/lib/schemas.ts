@@ -134,11 +134,6 @@ export const deleteSourceBodySchema = z
   .object({ sourceId: uuidSchema, confirmName: z.string().min(1).max(200) })
   .strict();
 
-/** Single-admin login body. */
-export const loginBodySchema = z
-  .object({ username: z.string().min(1).max(256), password: z.string().min(1).max(512) })
-  .strict();
-
 /* ------------------------------------------------------------------ */
 /* Genesys response schemas (lenient: tolerate unknown extra fields)  */
 /* ------------------------------------------------------------------ */
@@ -194,7 +189,8 @@ export const genesysUploadTicketSchema = z
 export const genesysTokenSchema = z
   .object({
     access_token: z.string(),
-    token_type: z.string(),
+    refresh_token: z.string().optional(),
+    token_type: z.string().optional(),
     expires_in: z.number(),
   })
   .passthrough();

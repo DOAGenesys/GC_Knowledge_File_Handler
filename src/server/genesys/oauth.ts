@@ -1,25 +1,63 @@
 import 'server-only';
 
+import crypto from 'node:crypto';
+import { cookies } from 'next/headers';
+import type { NextRequest, NextResponse } from 'next/server';
 import { AppError } from '@/lib/errors';
 import { GENESYS_TOKEN_PATH } from '@/lib/constants';
 import { genesysTokenSchema } from '@/lib/schemas';
-import { getServerConfig } from '../config';
+import { getServerConfig, normalizeRegionHost } from '../config';
+import { decryptJson, encryptJson } from '../auth/secure-cookie';
+import { issueCsrfToken, issueSessionToken } from '../auth/guards';
+import {
+  CSRF_COOKIE,
+  GENESYS_AUTH_COOKIE,
+  OAUTH_STATE_COOKIE,
+  SESSION_COOKIE,
+  csrfCookieOptions,
+  genesysAuthCookieOptions,
+  oauthStateCookieOptions,
+  sessionCookieOptions,
+} from '../auth/cookies';
 import { logger } from '../logger';
 
 /**
- * Genesys OAuth Client-Credentials token acquisition (PRODUCT.md §9.1).
- *
- * The access token lives ONLY in server memory, is refreshed before expiry, and
- * is never returned to the browser or logged. The token endpoint is on the
- * region LOGIN host (login.<region>), derived from the API host.
+ * Genesys OAuth Authorization Code + PKCE helpers.
+ * Access/refresh tokens are stored only in encrypted HttpOnly cookies or, for a
+ * durable sync run, inside an encrypted workflow payload.
  */
-interface CachedToken {
-  accessToken: string;
-  expiresAtMs: number;
+
+export interface GenesysUserProfile {
+  id?: string;
+  name?: string;
+  email?: string;
+  username?: string;
 }
 
-let cache: CachedToken | null = null;
-let inFlight: Promise<string> | null = null;
+export interface GenesysAuthContext {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAtMs: number;
+  clientId: string;
+  regionHost: string;
+  user?: GenesysUserProfile;
+}
+
+interface OAuthState {
+  state: string;
+  verifier: string;
+  clientId: string;
+  regionHost: string;
+  next: string;
+  createdAtMs: number;
+}
+
+export interface AccessTokenResult {
+  accessToken: string;
+  regionHost: string;
+  authContext: GenesysAuthContext;
+  refreshed: boolean;
+}
 
 /** Derive the login host (login.<region>) from the API host (api.<region>). */
 export function deriveLoginHost(apiHost: string): string {
@@ -28,24 +66,82 @@ export function deriveLoginHost(apiHost: string): string {
   return `login.${apiHost}`;
 }
 
-function basicAuthHeader(clientId: string, clientSecret: string): string {
-  const raw = `${clientId}:${clientSecret}`;
-  const b64 = typeof btoa === 'function' ? btoa(raw) : Buffer.from(raw, 'utf8').toString('base64');
-  return `Basic ${b64}`;
+function getPublicOrigin(req: NextRequest): string {
+  const proto =
+    req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() ||
+    req.nextUrl.protocol.replace(/:$/, '');
+  const host =
+    req.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    req.headers.get('host') ||
+    req.nextUrl.host;
+  return `${proto}://${host}`;
 }
 
-async function fetchToken(): Promise<string> {
+function redirectUri(req: NextRequest): string {
+  return `${getPublicOrigin(req)}/api/auth/callback`;
+}
+
+function safeNext(value: string | null): string {
+  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/';
+}
+
+function getSecret(): string {
   const cfg = getServerConfig();
-  if (
-    !cfg.genesys.configured ||
-    !cfg.genesys.clientId ||
-    !cfg.genesys.clientSecret ||
-    !cfg.genesys.regionHost
-  ) {
-    throw new AppError('GENESYS_NOT_CONFIGURED');
+  if (!cfg.auth.sessionSecret) throw new AppError('APP_UNAUTHENTICATED');
+  return cfg.auth.sessionSecret;
+}
+
+function createPkceVerifier(): string {
+  return crypto.randomBytes(64).toString('base64url').slice(0, 96);
+}
+
+function createPkceChallenge(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier, 'ascii').digest('base64url');
+}
+
+function randomBase64Url(bytes = 32): string {
+  return crypto.randomBytes(bytes).toString('base64url');
+}
+
+function encodeState(state: OAuthState): string {
+  return encryptJson(state, getSecret());
+}
+
+function decodeState(value: string): OAuthState {
+  return decryptJson<OAuthState>(value, getSecret());
+}
+
+export function encryptGenesysAuthContext(context: GenesysAuthContext): string {
+  return encryptJson(context, getSecret());
+}
+
+export function decryptGenesysAuthContext(value: string): GenesysAuthContext {
+  return decryptJson<GenesysAuthContext>(value, getSecret());
+}
+
+export async function getGenesysAuthContextFromCookie(): Promise<GenesysAuthContext | null> {
+  const store = await cookies();
+  const value = store.get(GENESYS_AUTH_COOKIE)?.value;
+  if (!value) return null;
+  try {
+    return decryptGenesysAuthContext(value);
+  } catch {
+    return null;
   }
-  const loginHost = deriveLoginHost(cfg.genesys.regionHost);
-  const url = `https://${loginHost}${GENESYS_TOKEN_PATH}`;
+}
+
+export async function getEncryptedGenesysAuthForWorkflow(): Promise<string> {
+  const context = await getGenesysAuthContextFromCookie();
+  if (!context) throw new AppError('GENESYS_NOT_CONFIGURED');
+  return encryptGenesysAuthContext(context);
+}
+
+function displayName(user: GenesysUserProfile | undefined): string {
+  return user?.name || user?.email || user?.username || user?.id || 'Genesys user';
+}
+
+async function postToken(regionHost: string, body: URLSearchParams) {
+  const url = `https://${deriveLoginHost(regionHost)}${GENESYS_TOKEN_PATH}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -54,11 +150,10 @@ async function fetchToken(): Promise<string> {
     res = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: basicAuthHeader(cfg.genesys.clientId, cfg.genesys.clientSecret),
         'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'application/json',
       },
-      body: 'grant_type=client_credentials',
+      body,
       signal: controller.signal,
       cache: 'no-store',
     });
@@ -79,23 +174,216 @@ async function fetchToken(): Promise<string> {
     throw new AppError('GENESYS_AUTH_FAILED', { detail: 'unexpected token response shape' });
   }
 
-  const ttlMs = Math.max(0, parsed.data.expires_in * 1000 - 60_000); // 60s safety buffer
-  cache = { accessToken: parsed.data.access_token, expiresAtMs: Date.now() + ttlMs };
-  return cache.accessToken;
+  return parsed.data;
 }
 
-/** Get a valid access token, refreshing if necessary. Coalesces concurrent calls. */
-export async function getAccessToken(): Promise<string> {
-  if (cache && cache.expiresAtMs > Date.now()) return cache.accessToken;
-  if (inFlight) return inFlight;
-  inFlight = fetchToken().finally(() => {
-    inFlight = null;
-  });
-  return inFlight;
+async function fetchGenesysUser(
+  regionHost: string,
+  accessToken: string,
+): Promise<GenesysUserProfile> {
+  try {
+    const res = await fetch(`https://${regionHost}/api/v2/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) return {};
+    const json = (await res.json()) as GenesysUserProfile;
+    return json && typeof json === 'object' ? json : {};
+  } catch {
+    return {};
+  }
 }
 
-/** Test/operational helper: clear the in-memory token cache. */
+async function refreshAuthContext(context: GenesysAuthContext): Promise<GenesysAuthContext> {
+  if (!context.refreshToken) throw new AppError('GENESYS_AUTH_FAILED');
+  const token = await postToken(
+    context.regionHost,
+    new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: context.refreshToken,
+      client_id: context.clientId,
+    }),
+  );
+  return {
+    ...context,
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token ?? context.refreshToken,
+    expiresAtMs: Date.now() + token.expires_in * 1000,
+  };
+}
+
+async function persistGenesysAuthCookie(context: GenesysAuthContext): Promise<void> {
+  const store = await cookies();
+  const cfg = getServerConfig();
+  store.set(
+    GENESYS_AUTH_COOKIE,
+    encryptGenesysAuthContext(context),
+    genesysAuthCookieOptions(
+      cfg.auth.sessionTtlMinutes * 60,
+      cfg.environmentLabel === 'production',
+    ),
+  );
+}
+
+export async function getAccessToken(
+  context?: GenesysAuthContext,
+  options: { forceRefresh?: boolean } = {},
+): Promise<AccessTokenResult> {
+  let authContext = context ?? (await getGenesysAuthContextFromCookie());
+  if (!authContext) throw new AppError('GENESYS_NOT_CONFIGURED');
+
+  const shouldRefresh = options.forceRefresh || authContext.expiresAtMs - Date.now() <= 60_000;
+  if (!shouldRefresh) {
+    return {
+      accessToken: authContext.accessToken,
+      regionHost: authContext.regionHost,
+      authContext,
+      refreshed: false,
+    };
+  }
+
+  authContext = await refreshAuthContext(authContext);
+  if (!context) await persistGenesysAuthCookie(authContext);
+  return {
+    accessToken: authContext.accessToken,
+    regionHost: authContext.regionHost,
+    authContext,
+    refreshed: true,
+  };
+}
+
+export async function buildAuthorizeRedirect(req: NextRequest): Promise<{
+  url: string;
+  stateCookieValue: string;
+}> {
+  const clientId = req.nextUrl.searchParams.get('clientId')?.trim() || '';
+  const regionInput = req.nextUrl.searchParams.get('region')?.trim() || '';
+  if (!clientId || !regionInput) throw new AppError('APP_BAD_REQUEST');
+
+  const regionHost = normalizeRegionHost(regionInput);
+  if (!regionHost) throw new AppError('APP_BAD_REQUEST', { detail: 'invalid Genesys region' });
+
+  const verifier = createPkceVerifier();
+  const challenge = createPkceChallenge(verifier);
+  const state = randomBase64Url(32);
+  const loginHost = deriveLoginHost(regionHost);
+  const url = new URL(`https://${loginHost}/oauth/authorize`);
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('redirect_uri', redirectUri(req));
+  url.searchParams.set('code_challenge', challenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+  url.searchParams.set('state', state);
+
+  return {
+    url: url.toString(),
+    stateCookieValue: encodeState({
+      state,
+      verifier,
+      clientId,
+      regionHost,
+      next: safeNext(req.nextUrl.searchParams.get('next')),
+      createdAtMs: Date.now(),
+    }),
+  };
+}
+
+export async function completeAuthorizationCodeLogin(
+  req: NextRequest,
+  res: NextResponse,
+): Promise<string> {
+  const code = req.nextUrl.searchParams.get('code');
+  const returnedState = req.nextUrl.searchParams.get('state');
+  const stateCookie = req.cookies.get(OAUTH_STATE_COOKIE)?.value;
+  if (!code || !returnedState || !stateCookie) throw new AppError('APP_UNAUTHENTICATED');
+
+  let oauthState: OAuthState;
+  try {
+    oauthState = decodeState(stateCookie);
+  } catch {
+    throw new AppError('APP_UNAUTHENTICATED');
+  }
+  if (oauthState.state !== returnedState || Date.now() - oauthState.createdAtMs > 10 * 60 * 1000) {
+    throw new AppError('APP_UNAUTHENTICATED');
+  }
+
+  const token = await postToken(
+    oauthState.regionHost,
+    new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri(req),
+      client_id: oauthState.clientId,
+      code_verifier: oauthState.verifier,
+      code_challenge_method: 'S256',
+    }),
+  );
+  const user = await fetchGenesysUser(oauthState.regionHost, token.access_token);
+  const context: GenesysAuthContext = {
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token,
+    expiresAtMs: Date.now() + token.expires_in * 1000,
+    clientId: oauthState.clientId,
+    regionHost: oauthState.regionHost,
+    user,
+  };
+
+  const cfg = getServerConfig();
+  const secure = req.nextUrl.protocol === 'https:' || cfg.environmentLabel === 'production';
+  const maxAge = cfg.auth.sessionTtlMinutes * 60;
+  const sessionToken = await issueSessionToken(displayName(user));
+  const csrf = issueCsrfToken();
+
+  res.cookies.set(SESSION_COOKIE, sessionToken, sessionCookieOptions(maxAge, secure));
+  res.cookies.set(CSRF_COOKIE, csrf, csrfCookieOptions(maxAge, secure));
+  res.cookies.set(
+    GENESYS_AUTH_COOKIE,
+    encryptGenesysAuthContext(context),
+    genesysAuthCookieOptions(maxAge, secure),
+  );
+  res.cookies.set(OAUTH_STATE_COOKIE, '', oauthStateCookieOptions(0, secure));
+
+  return oauthState.next;
+}
+
+export function setOAuthStateCookie(res: NextResponse, value: string, secure: boolean): void {
+  res.cookies.set(OAUTH_STATE_COOKIE, value, oauthStateCookieOptions(600, secure));
+}
+
+export function clearGenesysAuthCookies(res: NextResponse, secure: boolean): void {
+  res.cookies.set(GENESYS_AUTH_COOKIE, '', genesysAuthCookieOptions(0, secure));
+  res.cookies.set(OAUTH_STATE_COOKIE, '', oauthStateCookieOptions(0, secure));
+}
+
+export async function currentGenesysIdentity(): Promise<{
+  username: string;
+  regionHost: string;
+  expiresAt: number;
+} | null> {
+  const context = await getGenesysAuthContextFromCookie();
+  if (!context) return null;
+  return {
+    username: displayName(context.user),
+    regionHost: context.regionHost,
+    expiresAt: Math.floor(context.expiresAtMs / 1000),
+  };
+}
+
+export async function isGenesysSessionAvailable(): Promise<boolean> {
+  return Boolean(await getGenesysAuthContextFromCookie());
+}
+
+/** Test/operational helper retained for callers that clear auth state on 401. */
 export function __resetTokenCache(): void {
-  cache = null;
-  inFlight = null;
+  // Token state is cookie/workflow scoped in the PKCE flow, not process-global.
+}
+
+export function authErrorRedirect(req: NextRequest, code: string): URL {
+  const url = new URL('/login', getPublicOrigin(req));
+  url.searchParams.set('auth_error', code);
+  return url;
+}
+
+export function successRedirect(req: NextRequest, next: string): URL {
+  return new URL(safeNext(next), getPublicOrigin(req));
 }

@@ -3,8 +3,6 @@ import 'server-only';
 import type { NextRequest } from 'next/server';
 import { AppError, type ErrorCode } from '@/lib/errors';
 import type { FeatureKey } from '@/lib/feature-flags';
-import { bytesToHex } from '@/lib/md5';
-import { sha256Bytes } from '@/lib/sha256';
 import { getServerConfig } from '../config';
 import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE } from './cookies';
 import {
@@ -15,30 +13,13 @@ import {
   type SessionPayload,
 } from './session-core';
 
-/** Fixed-length (64-hex) SHA-256 digest of a string, for length-leak-free compares. */
-function digest(value: string): string {
-  return bytesToHex(sha256Bytes(new TextEncoder().encode(value)));
-}
-
 /**
  * Route-handler authentication / CSRF / feature guards (TODO Block 3). Every
- * mutating and sensitive route calls these. The single-admin model means there
- * is exactly one valid identity, defined by ADMIN_USERNAME / ADMIN_PASSWORD.
+ * mutating and sensitive route calls these. The signed app session is created
+ * only after Genesys Cloud completes the Authorization Code + PKCE callback.
  */
 
-/** Verify login credentials against the configured single admin, timing-safe. */
-export function verifyCredentials(username: string, password: string): boolean {
-  const cfg = getServerConfig();
-  if (!cfg.auth.configured || !cfg.auth.adminUsername || !cfg.auth.adminPassword) return false;
-  // Compare fixed-length (64-hex) SHA-256 digests with constant-time equality so
-  // neither the comparison time nor an early length-mismatch return can leak the
-  // length of the configured username/password (the buffers are always 64 chars).
-  const userOk = timingSafeEqual(digest(username), digest(cfg.auth.adminUsername));
-  const passOk = timingSafeEqual(digest(password), digest(cfg.auth.adminPassword));
-  return userOk && passOk;
-}
-
-/** Mint a signed session token for the admin. */
+/** Mint a signed app session token for the authenticated Genesys user. */
 export async function issueSessionToken(username: string): Promise<string> {
   const cfg = getServerConfig();
   if (!cfg.auth.sessionSecret)
@@ -108,7 +89,7 @@ export function requireFeature(key: FeatureKey): void {
 
 /** Ensure Genesys is configured before a route that needs it; else fail closed. */
 export function requireGenesys(): void {
-  if (!getServerConfig().genesys.configured) throw new AppError('GENESYS_NOT_CONFIGURED');
+  if (!getServerConfig().auth.configured) throw new AppError('APP_UNAUTHENTICATED');
 }
 
 /** Map an unknown thrown value to an AppError for a JSON error response. */

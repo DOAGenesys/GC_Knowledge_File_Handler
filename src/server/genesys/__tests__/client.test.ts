@@ -1,10 +1,9 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isAppError } from '@/lib/errors';
+import type { GenesysAuthContext } from '../oauth';
 
 // Configure Genesys env BEFORE importing modules that memoize config.
 beforeAll(() => {
   process.env.GENESYS_CLIENT_ID = 'cid';
-  process.env.GENESYS_CLIENT_SECRET = 'secret';
   process.env.GENESYS_REGION_API_HOST = 'api.mypurecloud.com';
 });
 
@@ -20,10 +19,36 @@ let fetchMock: FetchMock;
 async function fresh() {
   const config = await import('@/server/config');
   config.__resetConfigCache();
-  const oauth = await import('../oauth');
-  oauth.__resetTokenCache();
   const client = await import('../client');
-  return client;
+  const authContext = (): GenesysAuthContext => ({
+    accessToken: 'tok-123',
+    refreshToken: 'refresh-123',
+    expiresAtMs: Date.now() + 3600_000,
+    clientId: 'cid',
+    regionHost: 'api.mypurecloud.com',
+  });
+  return {
+    listSources: (options?: { pageSize?: number }) =>
+      client.listSources(options, { authContext: authContext() }),
+    getSource: (sourceId: string) => client.getSource(sourceId, { authContext: authContext() }),
+    createSource: (name: string) => client.createSource(name, { authContext: authContext() }),
+    startSynchronization: (sourceId: string, type: 'Incremental' | 'Full') =>
+      client.startSynchronization(sourceId, type, { authContext: authContext() }),
+    requestUploadUrl: (
+      sourceId: string,
+      synchronizationId: string,
+      input: Parameters<typeof client.requestUploadUrl>[2],
+    ) =>
+      client.requestUploadUrl(sourceId, synchronizationId, input, { authContext: authContext() }),
+    patchSynchronization: (
+      sourceId: string,
+      synchronizationId: string,
+      status: 'Completed' | 'Cancelled',
+    ) =>
+      client.patchSynchronization(sourceId, synchronizationId, status, {
+        authContext: authContext(),
+      }),
+  };
 }
 
 beforeEach(() => {
@@ -177,7 +202,7 @@ describe('Genesys client', () => {
     const client = await fresh();
     const sources = await client.listSources();
     expect(sources).toEqual([]);
-    expect(tokenCalls).toBe(2);
+    expect(tokenCalls).toBe(1);
     expect(apiCalls).toBe(2);
   });
 
@@ -214,13 +239,5 @@ describe('Genesys client', () => {
     });
     const client = await fresh();
     await expect(client.createSource('KB')).rejects.toMatchObject({ code: 'GENESYS_AUTH_FAILED' });
-  });
-
-  it('throws GENESYS_NOT_CONFIGURED when region host is missing', async () => {
-    process.env.GENESYS_REGION_API_HOST = '';
-    const client = await fresh();
-    const err = await client.listSources().catch((e) => e);
-    expect(isAppError(err) && err.code).toBe('GENESYS_NOT_CONFIGURED');
-    process.env.GENESYS_REGION_API_HOST = 'api.mypurecloud.com';
   });
 });

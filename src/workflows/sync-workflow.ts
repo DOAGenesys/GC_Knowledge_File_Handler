@@ -32,7 +32,13 @@ import {
   getSourceSynchronization,
   patchSynchronization,
   startSynchronization,
+  type GenesysClientContext,
 } from '@/server/genesys/client';
+import {
+  decryptGenesysAuthContext,
+  encryptGenesysAuthContext,
+  type GenesysAuthContext,
+} from '@/server/genesys/oauth';
 import {
   applyEvent,
   counts,
@@ -101,38 +107,87 @@ async function validateInputStep(input: StartSyncInput): Promise<void> {
 }
 
 type ResolveResult =
-  | { ok: true; sourceId: string; createdByApp: boolean }
-  | { ok: false; code: ErrorCode };
+  | { ok: true; sourceId: string; createdByApp: boolean; genesysAuth: string }
+  | { ok: false; code: ErrorCode; genesysAuth: string };
 
-async function resolveSourceStep(input: StartSyncInput): Promise<ResolveResult> {
+function syncOnlyInput(input: WorkflowSyncInput): StartSyncInput {
+  const { genesysAuth: _genesysAuth, ...syncInput } = input;
+  return syncInput;
+}
+
+function genesysContext(encryptedAuth: string): {
+  authContext: GenesysAuthContext;
+  clientContext: GenesysClientContext;
+  encryptedAuth: () => string;
+} {
+  let authContext = decryptGenesysAuthContext(encryptedAuth);
+  return {
+    authContext,
+    clientContext: {
+      authContext,
+      onAuthContextUpdated: (next) => {
+        authContext = next;
+      },
+    },
+    encryptedAuth: () => encryptGenesysAuthContext(authContext),
+  };
+}
+
+async function resolveSourceStep(
+  input: WorkflowSyncInput,
+  encryptedAuth: string,
+): Promise<ResolveResult> {
   'use step';
+  const auth = genesysContext(encryptedAuth);
   try {
     if (input.sourceMode === 'create' && input.createSourceName) {
-      const created = await createSource(input.createSourceName);
-      return { ok: true, sourceId: created.id, createdByApp: true };
+      const created = await createSource(input.createSourceName, auth.clientContext);
+      return {
+        ok: true,
+        sourceId: created.id,
+        createdByApp: true,
+        genesysAuth: auth.encryptedAuth(),
+      };
     }
-    const source = await getSource(input.sourceId!);
+    const source = await getSource(input.sourceId!, auth.clientContext);
     if (source.type !== FILE_UPLOAD_SOURCE_TYPE) {
-      return { ok: false, code: 'SOURCE_INCOMPATIBLE_TYPE' };
+      return { ok: false, code: 'SOURCE_INCOMPATIBLE_TYPE', genesysAuth: auth.encryptedAuth() };
     }
-    return { ok: true, sourceId: source.id, createdByApp: false };
+    return {
+      ok: true,
+      sourceId: source.id,
+      createdByApp: false,
+      genesysAuth: auth.encryptedAuth(),
+    };
   } catch (err) {
-    return { ok: false, code: err instanceof AppError ? err.code : 'SOURCE_VALIDATION_FAILED' };
+    return {
+      ok: false,
+      code: err instanceof AppError ? err.code : 'SOURCE_VALIDATION_FAILED',
+      genesysAuth: auth.encryptedAuth(),
+    };
   }
 }
 
-type StartSyncResult = { ok: true; synchronizationId: string } | { ok: false; code: ErrorCode };
+type StartSyncResult =
+  | { ok: true; synchronizationId: string; genesysAuth: string }
+  | { ok: false; code: ErrorCode; genesysAuth: string };
 
 async function startSyncStep(
   sourceId: string,
   syncType: StartSyncInput['syncType'],
+  encryptedAuth: string,
 ): Promise<StartSyncResult> {
   'use step';
+  const auth = genesysContext(encryptedAuth);
   try {
-    const sync = await startSynchronization(sourceId, syncType);
-    return { ok: true, synchronizationId: sync.id };
+    const sync = await startSynchronization(sourceId, syncType, auth.clientContext);
+    return { ok: true, synchronizationId: sync.id, genesysAuth: auth.encryptedAuth() };
   } catch (err) {
-    return { ok: false, code: err instanceof AppError ? err.code : 'SYNC_START_FAILED' };
+    return {
+      ok: false,
+      code: err instanceof AppError ? err.code : 'SYNC_START_FAILED',
+      genesysAuth: auth.encryptedAuth(),
+    };
   }
 }
 
@@ -153,25 +208,36 @@ async function emitTicketReadyStep(localFileKey: string): Promise<string> {
   return attemptId;
 }
 
-type PatchResult = { status: 'ok' | 'unknown' | 'failed'; remoteStatus: string | null };
+type PatchResult = {
+  status: 'ok' | 'unknown' | 'failed';
+  remoteStatus: string | null;
+  genesysAuth: string;
+};
 
 async function patchStep(
   sourceId: string,
   synchronizationId: string,
   target: 'Completed' | 'Cancelled',
+  encryptedAuth: string,
 ): Promise<PatchResult> {
   'use step';
+  const auth = genesysContext(encryptedAuth);
   try {
-    const result = await patchSynchronization(sourceId, synchronizationId, target);
-    return { status: 'ok', remoteStatus: result.status };
+    const result = await patchSynchronization(
+      sourceId,
+      synchronizationId,
+      target,
+      auth.clientContext,
+    );
+    return { status: 'ok', remoteStatus: result.status, genesysAuth: auth.encryptedAuth() };
   } catch (err) {
     if (
       err instanceof AppError &&
       (err.code === 'COMPLETION_UNKNOWN' || err.code === 'CANCELLATION_UNKNOWN')
     ) {
-      return { status: 'unknown', remoteStatus: null };
+      return { status: 'unknown', remoteStatus: null, genesysAuth: auth.encryptedAuth() };
     }
-    return { status: 'failed', remoteStatus: null };
+    return { status: 'failed', remoteStatus: null, genesysAuth: auth.encryptedAuth() };
   }
 }
 
@@ -188,13 +254,15 @@ async function resolveUploadWaitStep(): Promise<number> {
 async function refreshStatusStep(
   sourceId: string,
   synchronizationId: string,
-): Promise<string | null> {
+  encryptedAuth: string,
+): Promise<{ status: string | null; genesysAuth: string }> {
   'use step';
+  const auth = genesysContext(encryptedAuth);
   try {
-    const s = await getSourceSynchronization(sourceId, synchronizationId);
-    return s.status;
+    const s = await getSourceSynchronization(sourceId, synchronizationId, auth.clientContext);
+    return { status: s.status, genesysAuth: auth.encryptedAuth() };
   } catch {
-    return null;
+    return { status: null, genesysAuth: auth.encryptedAuth() };
   }
 }
 
@@ -213,8 +281,11 @@ export interface SyncWorkflowSummary {
   errorSummary: string | null;
 }
 
-export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowSummary> {
+export type WorkflowSyncInput = StartSyncInput & { genesysAuth: string };
+
+export async function syncWorkflow(input: WorkflowSyncInput): Promise<SyncWorkflowSummary> {
   'use workflow';
+  let genesysAuth = input.genesysAuth;
 
   await writeStreamStep({ kind: 'state', runState: 'WorkflowStarting' });
   await logWorkflowStep('sync.workflow.started', {
@@ -228,11 +299,12 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
   // otherwise throw HookNotFoundError on a not-yet-registered token).
   const hook = createHook<WorkflowHookMessage>({ token: syncHookToken(input.localRunKey) });
 
-  await validateInputStep(input);
+  await validateInputStep(syncOnlyInput(input));
 
   // Resolve source.
   await writeStreamStep({ kind: 'state', runState: 'SourceValidating', step: 'source' });
-  const resolved = await resolveSourceStep(input);
+  const resolved = await resolveSourceStep(input, genesysAuth);
+  genesysAuth = resolved.genesysAuth;
   if (!resolved.ok) {
     const outcome =
       resolved.code === 'SOURCE_CREATE_UNKNOWN' ? 'SourceCreateUnknown' : 'FailedFatal';
@@ -265,7 +337,8 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
 
   // Start synchronization.
   await writeStreamStep({ kind: 'state', runState: 'SynchronizationStarting', step: 'sync' });
-  const started = await startSyncStep(sourceId, input.syncType);
+  const started = await startSyncStep(sourceId, input.syncType, genesysAuth);
+  genesysAuth = started.genesysAuth;
   if (!started.ok) {
     const outcome = started.code === 'SYNC_START_UNKNOWN' ? 'SyncStartUnknown' : 'FailedFatal';
     await writeStreamStep({
@@ -378,22 +451,38 @@ export async function syncWorkflow(input: StartSyncInput): Promise<SyncWorkflowS
       runState: 'CompletingSynchronization',
       step: 'complete',
     });
-    const patch = await patchStep(sourceId, synchronizationId, 'Completed');
+    const patch = await patchStep(sourceId, synchronizationId, 'Completed', genesysAuth);
+    genesysAuth = patch.genesysAuth;
     if (patch.status === 'unknown') {
       errorSummary = 'COMPLETION_UNKNOWN';
     } else if (patch.status === 'failed') {
       errorSummary = 'COMPLETION_FAILED';
     }
-    lastRemoteStatus = patch.remoteStatus ?? (await refreshStatusStep(sourceId, synchronizationId));
+    if (patch.remoteStatus) {
+      lastRemoteStatus = patch.remoteStatus;
+    } else {
+      const refreshed = await refreshStatusStep(sourceId, synchronizationId, genesysAuth);
+      genesysAuth = refreshed.genesysAuth;
+      lastRemoteStatus = refreshed.status;
+    }
   } else if (finalOutcome === 'Cancelled') {
     await writeStreamStep({ kind: 'state', runState: 'Cancelling', step: 'cancel' });
-    const patch = await patchStep(sourceId, synchronizationId, 'Cancelled');
+    const patch = await patchStep(sourceId, synchronizationId, 'Cancelled', genesysAuth);
+    genesysAuth = patch.genesysAuth;
     if (patch.status === 'unknown') errorSummary = 'CANCELLATION_UNKNOWN';
-    lastRemoteStatus = patch.remoteStatus ?? (await refreshStatusStep(sourceId, synchronizationId));
+    if (patch.remoteStatus) {
+      lastRemoteStatus = patch.remoteStatus;
+    } else {
+      const refreshed = await refreshStatusStep(sourceId, synchronizationId, genesysAuth);
+      genesysAuth = refreshed.genesysAuth;
+      lastRemoteStatus = refreshed.status;
+    }
   } else {
     // NeedsUserAction: never patch Completed. Leave the round open for the user.
     errorSummary = 'NeedsUserAction';
-    lastRemoteStatus = await refreshStatusStep(sourceId, synchronizationId);
+    const refreshed = await refreshStatusStep(sourceId, synchronizationId, genesysAuth);
+    genesysAuth = refreshed.genesysAuth;
+    lastRemoteStatus = refreshed.status;
   }
 
   // SAFETY DOWNGRADE: a Completed run whose PATCH was not confirmed must NOT be

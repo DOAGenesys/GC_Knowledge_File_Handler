@@ -12,13 +12,9 @@ import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE } from '../cookies';
 const SECRET = 'unit-test-session-secret-which-is-long-enough';
 
 beforeAll(() => {
-  process.env.ADMIN_USERNAME = 'admin';
-  process.env.ADMIN_PASSWORD = 'super-secret-password';
   process.env.APP_SESSION_SECRET = SECRET;
 });
 afterAll(() => {
-  delete process.env.ADMIN_USERNAME;
-  delete process.env.ADMIN_PASSWORD;
   delete process.env.APP_SESSION_SECRET;
 });
 
@@ -62,16 +58,6 @@ describe('session-core', () => {
 
   it('randomToken yields distinct values', () => {
     expect(randomToken()).not.toBe(randomToken());
-  });
-});
-
-describe('verifyCredentials (single admin)', () => {
-  it('accepts the configured admin and rejects everything else', async () => {
-    const { verifyCredentials } = await freshGuards();
-    expect(verifyCredentials('admin', 'super-secret-password')).toBe(true);
-    expect(verifyCredentials('admin', 'wrong')).toBe(false);
-    expect(verifyCredentials('root', 'super-secret-password')).toBe(false);
-    expect(verifyCredentials('', '')).toBe(false);
   });
 });
 

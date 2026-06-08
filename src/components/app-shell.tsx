@@ -99,7 +99,7 @@ function Sidebar() {
         vaultState={vaultState}
         onLock={() => {
           lockVault();
-          toast({ tone: 'info', title: 'Vault locked', body: 'In-memory key cleared.' });
+          toast({ tone: 'info', title: 'Local data locked' });
         }}
       />
     </aside>
@@ -112,20 +112,20 @@ function VaultChip({ vaultState, onLock }: { vaultState: string; onLock: () => v
       ? {
           icon: 'unlock',
           tone: 'var(--success)',
-          label: 'Vault unlocked',
-          sub: 'AES-GCM · in-memory key',
+          label: 'Local data unlocked',
+          sub: 'Click to lock',
         }
       : vaultState === 'ephemeral'
         ? {
             icon: 'alert',
             tone: 'var(--warning)',
-            label: 'Ephemeral mode',
-            sub: 'No local persistence',
+            label: 'Session only',
+            sub: 'Changes will not be saved',
           }
         : {
             icon: 'lock',
             tone: 'var(--text-faint)',
-            label: 'Vault locked',
+            label: 'Local data locked',
             sub: 'Unlock to continue',
           };
   return (
@@ -182,7 +182,7 @@ function Topbar() {
           </span>
           {conn.label}
         </div>
-        <Tip text="Single-admin access protection is enforced">
+        <Tip text="Signed-in access is required">
           <div
             className="statuschip"
             style={{ width: 30, padding: 0, justifyContent: 'center', color: 'var(--success)' }}

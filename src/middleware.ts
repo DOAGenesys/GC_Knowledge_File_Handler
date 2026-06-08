@@ -16,6 +16,7 @@ import { verifySession } from '@/server/auth/session-core';
 const PUBLIC_PATHS = new Set<string>([
   '/login',
   '/api/auth/login',
+  '/api/auth/callback',
   '/api/auth/logout',
   '/api/health',
 ]);

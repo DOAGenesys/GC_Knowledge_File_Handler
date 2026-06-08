@@ -8,11 +8,10 @@ import { DEFAULT_MAX_SELECTED_FILES, DEFAULT_SIZE_WARN_MB } from '@/lib/constant
  * variables and memoized. Secrets are read here but NEVER returned to the
  * browser — only readiness booleans and non-secret limits cross to the client.
  *
- * The app boots even when Genesys is unconfigured: sync actions are disabled
- * and Diagnostics shows actionable, secret-free guidance (fail closed on the
- * action, not on boot). Authentication, however, requires the admin
- * credentials + session secret to be present; without them the login route
- * fails closed and no feature is reachable.
+ * The app boots without server-side Genesys credentials. Users provide the
+ * Genesys Cloud region and OAuth client ID on the sign-in page, then the app
+ * uses their own PKCE session for API calls. Server-side authentication only
+ * requires the app session secret used to protect cookies and short-lived tokens.
  */
 
 function bool(value: string | undefined, fallback: boolean): boolean {
@@ -25,28 +24,34 @@ function int(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-/** A Genesys region API host must be a bare host (no scheme, no path). */
-function normalizeRegionHost(raw: string | undefined): string | null {
+/** Normalize a Genesys region/domain/API URL to an API host such as api.mypurecloud.com. */
+export function normalizeRegionHost(raw: string | undefined): string | null {
   if (!raw) return null;
-  const trimmed = raw
-    .trim()
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '');
+  let host: string;
+  const trimmed = raw.trim().replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      host = new URL(trimmed).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  } else {
+    if (trimmed.includes('/')) return null;
+    host = trimmed.toLowerCase();
+  }
+  host = host.replace(/^login\./, '').replace(/^api\./, '');
   // Basic host shape: labels separated by dots, e.g. api.mypurecloud.com
-  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(trimmed)) return null;
-  return trimmed;
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host)) return null;
+  return `api.${host}`;
 }
 
 export interface ServerConfig {
   genesys: {
     clientId: string | null;
-    clientSecret: string | null;
     regionHost: string | null;
     configured: boolean;
   };
   auth: {
-    adminUsername: string | null;
-    adminPassword: string | null;
     sessionSecret: string | null;
     sessionTtlMinutes: number;
     configured: boolean;
@@ -70,11 +75,8 @@ export function getServerConfig(): ServerConfig {
   if (cached) return cached;
 
   const clientId = process.env.GENESYS_CLIENT_ID?.trim() || null;
-  const clientSecret = process.env.GENESYS_CLIENT_SECRET?.trim() || null;
   const regionHost = normalizeRegionHost(process.env.GENESYS_REGION_API_HOST);
 
-  const adminUsername = process.env.ADMIN_USERNAME?.trim() || null;
-  const adminPassword = process.env.ADMIN_PASSWORD || null;
   const sessionSecret = process.env.APP_SESSION_SECRET || null;
 
   const features = Object.fromEntries(
@@ -89,16 +91,13 @@ export function getServerConfig(): ServerConfig {
   cached = {
     genesys: {
       clientId,
-      clientSecret,
       regionHost,
-      configured: Boolean(clientId && clientSecret && regionHost),
+      configured: Boolean(clientId && regionHost),
     },
     auth: {
-      adminUsername,
-      adminPassword,
       sessionSecret,
       sessionTtlMinutes: int(process.env.SESSION_TTL_MINUTES, 720),
-      configured: Boolean(adminUsername && adminPassword && sessionSecret),
+      configured: Boolean(sessionSecret),
     },
     features,
     limits: {
@@ -132,20 +131,18 @@ export interface ReadinessReport {
   directUploadConnectSrcConfigured: boolean;
 }
 
-export function getReadiness(): ReadinessReport {
+export function getReadiness(
+  genesysSession?: { regionHost?: string | null } | null,
+): ReadinessReport {
   const cfg = getServerConfig();
   const missing: string[] = [];
-  if (!cfg.genesys.clientId) missing.push('GENESYS_CLIENT_ID');
-  if (!cfg.genesys.clientSecret) missing.push('GENESYS_CLIENT_SECRET');
-  if (!cfg.genesys.regionHost) missing.push('GENESYS_REGION_API_HOST');
-  if (!cfg.auth.adminUsername) missing.push('ADMIN_USERNAME');
-  if (!cfg.auth.adminPassword) missing.push('ADMIN_PASSWORD');
   if (!cfg.auth.sessionSecret) missing.push('APP_SESSION_SECRET');
+  const activeRegionHost = genesysSession?.regionHost ?? cfg.genesys.regionHost;
   return {
-    genesysConfigured: cfg.genesys.configured,
+    genesysConfigured: Boolean(genesysSession ?? cfg.genesys.configured),
     authConfigured: cfg.auth.configured,
     missing,
-    regionHostValid: cfg.genesys.regionHost != null,
+    regionHostValid: activeRegionHost != null,
     features: cfg.features,
     environmentLabel: cfg.environmentLabel,
     appVersion: cfg.appVersion,

@@ -172,7 +172,7 @@ export default function NewSyncPage() {
     toast({
       tone: 'success',
       title: 'Applied safe renames',
-      body: 'Upload names sanitized to Genesys constraints.',
+      body: 'File names were updated for Genesys.',
     });
   };
 
@@ -199,7 +199,7 @@ export default function NewSyncPage() {
       toast({
         tone: 'success',
         title: 'Source validated',
-        body: 'GET /knowledge/sources/{id} · accessible',
+        body: 'This source is ready to use.',
       });
     } catch (e) {
       toast({
@@ -312,12 +312,12 @@ export default function NewSyncPage() {
         <div className="page-head">
           <div className="page-title">New sync</div>
           <div className="page-desc">
-            Choose a compatible FileUpload source, then drop files to validate and sync.
+            Choose a compatible source, then drop files to review and sync.
           </div>
         </div>
         <Card pad>
           <Callout tone="info" icon="database" title="No compatible sources yet">
-            Discover, import, or create a FileUpload source first.
+            Discover, add, or create an upload source first.
             <div style={{ marginTop: 12 }}>
               <Link href="/sources" className="btn btn-primary btn-sm">
                 <Icon name="plus" size={15} /> Go to Sources
@@ -334,8 +334,7 @@ export default function NewSyncPage() {
       <div className="page-head">
         <div className="page-title">New sync</div>
         <div className="page-desc">
-          Files are validated and fingerprinted in your browser. Bytes never touch our server — only
-          metadata starts the workflow.
+          Choose files, review any warnings, and start the sync when everything is ready.
         </div>
       </div>
 
@@ -376,7 +375,7 @@ export default function NewSyncPage() {
               <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap' }}>
                 <CopyId value={source.sourceId} label="sourceId" truncate={20} />
                 <Badge tone="success" icon="check">
-                  FileUpload
+                  Upload source
                 </Badge>
                 {source.lastValidatedAt ? (
                   <Badge tone="neutral" icon="shieldCheck">
@@ -389,7 +388,7 @@ export default function NewSyncPage() {
                 )}
                 {source.localOnly ? (
                   <Badge tone="warning" icon="alert">
-                    Local-only ref
+                    Added manually
                   </Badge>
                 ) : null}
               </div>
@@ -428,15 +427,15 @@ export default function NewSyncPage() {
             {!fullEnabled ? (
               <div style={{ marginTop: 12 }}>
                 <Callout tone="info" icon="lock">
-                  Full sync is disabled by deployment policy (
-                  <span className="mono">ENABLE_FULL_SYNC</span>).
+                  Full sync is not enabled for this deployment.
                 </Callout>
               </div>
             ) : null}
             {syncType === 'Full' ? (
               <div style={{ marginTop: 12 }}>
                 <Callout tone="warning" title="Full sync">
-                  Verify deletion / full-replacement behavior in Genesys before relying on it.
+                  Confirm how your Genesys environment handles files that are missing from this
+                  upload.
                 </Callout>
               </div>
             ) : null}
@@ -472,7 +471,7 @@ export default function NewSyncPage() {
           </div>
           <div style={{ fontWeight: 700, fontSize: 16 }}>Drop files here</div>
           <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-            or browse — names are validated instantly against Genesys constraints
+            or browse — file names are checked before upload
           </div>
           <div className="row" style={{ justifyContent: 'center', gap: 10, marginTop: 18 }}>
             <Btn variant="default" icon="folder" onClick={() => inputRef.current?.click()}>
@@ -516,7 +515,7 @@ export default function NewSyncPage() {
                   <tr>
                     <th style={{ width: '40%' }}>File</th>
                     <th>Size</th>
-                    <th>Fingerprint</th>
+                <th>Check</th>
                     <th>Status</th>
                     <th aria-label="actions" />
                   </tr>
@@ -552,7 +551,7 @@ export default function NewSyncPage() {
               <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
                 <Stat icon="checkCircle" tone="success" n={readyCount} label="ready" />
                 <Stat icon="xCircle" tone="danger" n={blockingCount} label="blocking" />
-                <Stat icon="fingerprint" tone="accent" n={hashingCount} label="hashing" />
+                <Stat icon="fingerprint" tone="accent" n={hashingCount} label="checking" />
               </div>
               <div className="row" style={{ gap: 12 }}>
                 {blockingCount > 0 ? (
@@ -562,7 +561,7 @@ export default function NewSyncPage() {
                 ) : null}
                 {hashingCount > 0 ? (
                   <span className="row faint" style={{ fontSize: 12.5, gap: 6 }}>
-                    <Spinner size={14} /> Fingerprinting…
+                    <Spinner size={14} /> Checking files…
                   </span>
                 ) : null}
                 <Btn variant="primary" size="lg" icon="zap" disabled={!canStart} onClick={doStart}>
@@ -592,9 +591,8 @@ export default function NewSyncPage() {
         title="Confirm Full synchronization"
         body={
           <>
-            A <strong>Full</strong> sync may have replacement or deletion semantics depending on
-            your Genesys configuration. The app makes no undocumented promises about how missing
-            files are treated. Confirm you have verified this behavior in your Genesys environment.
+            A <strong>Full</strong> sync may replace existing content depending on your Genesys
+            configuration. Confirm you understand how missing files are handled before continuing.
           </>
         }
         confirmLabel="I understand — start Full sync"

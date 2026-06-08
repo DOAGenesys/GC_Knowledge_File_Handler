@@ -3,7 +3,7 @@ import 'server-only';
 import { isAppError } from '@/lib/errors';
 import { getServerConfig } from './config';
 import { listSources } from './genesys/client';
-import { getAccessToken } from './genesys/oauth';
+import { currentGenesysIdentity, getAccessToken } from './genesys/oauth';
 import { logger } from './logger';
 import { redactErrorMessage } from './redact';
 
@@ -25,27 +25,28 @@ export interface ServerCheck {
 
 export async function runServerDiagnostics(): Promise<ServerCheck[]> {
   const cfg = getServerConfig();
+  const genesys = await currentGenesysIdentity();
   const checks: ServerCheck[] = [];
 
   checks.push({
     key: 'access',
-    label: 'App access protection',
-    detail: 'Single-admin login enforced on every route',
+    label: 'App sign-in protection',
+    detail: 'Protected pages require a signed-in user',
     group: 'Security',
     status: cfg.auth.configured ? 'ok' : 'fail',
   });
 
   checks.push({
     key: 'region',
-    label: 'Genesys region API host',
-    detail: cfg.genesys.regionHost ?? 'not configured',
+    label: 'Genesys Cloud region',
+    detail: genesys?.regionHost ?? cfg.genesys.regionHost ?? 'not connected',
     group: 'Connectivity',
-    status: cfg.genesys.regionHost ? 'ok' : 'fail',
+    status: genesys?.regionHost || cfg.genesys.regionHost ? 'ok' : 'fail',
   });
 
-  // OAuth token acquisition — never exposes the token itself.
+  // OAuth token availability — never exposes the token itself.
   let tokenOk = false;
-  if (cfg.genesys.configured) {
+  if (genesys) {
     try {
       await getAccessToken();
       tokenOk = true;
@@ -56,10 +57,10 @@ export async function runServerDiagnostics(): Promise<ServerCheck[]> {
   }
   checks.push({
     key: 'token',
-    label: 'OAuth token acquisition',
-    detail: 'Client credentials · token never exposed to browser',
+    label: 'Genesys user session',
+    detail: 'Signed in with Genesys Cloud',
     group: 'Connectivity',
-    status: cfg.genesys.configured ? (tokenOk ? 'ok' : 'fail') : 'skip',
+    status: genesys ? (tokenOk ? 'ok' : 'fail') : 'skip',
   });
 
   // Source list permission probe (only if discovery enabled + token works).

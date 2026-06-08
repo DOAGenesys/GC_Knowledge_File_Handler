@@ -44,23 +44,23 @@ export function VaultGate() {
         await createVault(pass);
         toast({
           tone: 'success',
-          title: 'Vault created',
-          body: 'Encrypted with AES-GCM · key in memory only.',
+          title: 'Secure storage created',
+          body: 'Your local app data is ready.',
         });
       } else {
         await unlockVault(pass);
         toast({
           tone: 'success',
-          title: 'Vault unlocked',
-          body: 'Decryption key held in memory only.',
+          title: 'Storage unlocked',
+          body: 'You can continue where you left off.',
         });
       }
     } catch (e) {
       setAttempts((a) => a + 1);
       setErr(
         e instanceof Error && e.name === 'WrongPassphraseError'
-          ? 'Incorrect passphrase. Decryption failed.'
-          : 'Could not open the vault.',
+          ? 'Incorrect passphrase.'
+          : 'Could not unlock your local data.',
       );
       setPass('');
     } finally {
@@ -80,7 +80,7 @@ export function VaultGate() {
       </button>
 
       <div className="fade-in" style={{ width: 412, maxWidth: '90vw' }}>
-        <BrandHeader layout="auth" subtitle="Genesys Cloud · database-free" />
+        <BrandHeader layout="auth" subtitle="Genesys Cloud" />
 
         <Card pad style={{ padding: 28 }}>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -100,21 +100,21 @@ export function VaultGate() {
             </div>
             <h2 style={{ fontSize: 19, letterSpacing: '-0.02em' }}>
               {isCorrupt
-                ? 'Local vault is corrupt'
+                ? 'Local data needs attention'
                 : isEphemeral
                   ? 'Storage unavailable'
                   : isCreate
-                    ? 'Create your local vault'
-                    : 'Unlock your local vault'}
+                    ? 'Create your local storage'
+                    : 'Unlock your local storage'}
             </h2>
             <p className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.55 }}>
               {isCorrupt
-                ? 'The encrypted vault failed integrity validation. Restore from an export, or reset local data. No partial parsing is attempted.'
+                ? 'Your saved local data could not be opened. Restore from a backup, or reset local data to start fresh.'
                 : isEphemeral
-                  ? 'Browser storage is not available, so the app runs in ephemeral mode — nothing is persisted locally. You can still run a sync this session.'
+                  ? 'Browser storage is not available, so changes will only last for this session.'
                   : isCreate
-                    ? 'Pick a strong passphrase. Your non-secret metadata is encrypted at rest; no secrets, tokens, or file bytes are ever stored.'
-                    : 'Your encrypted metadata is decrypted in memory only. No secrets, tokens, or file bytes are ever stored.'}
+                    ? 'Pick a strong passphrase to protect source references and sync history on this device.'
+                    : 'Enter your passphrase to access saved sources and sync history on this device.'}
             </p>
           </div>
 
@@ -125,10 +125,10 @@ export function VaultGate() {
                   <input
                     className={`input mono ${err ? 'input-err' : ''}`}
                     type={show ? 'text' : 'password'}
-                    placeholder="Vault passphrase"
+                    placeholder="Passphrase"
                     value={pass}
                     autoFocus
-                    aria-label="Vault passphrase"
+                    aria-label="Passphrase"
                     onChange={(e) => {
                       setPass(e.target.value);
                       setErr('');
@@ -173,9 +173,8 @@ export function VaultGate() {
               {attempts >= 2 && !isCreate && (
                 <div style={{ marginTop: 12 }}>
                   <Callout tone="warning" title="Multiple failed attempts">
-                    No detail about the stored data is revealed on failure. If you forgot the
-                    passphrase, the vault cannot be recovered — reset local data and re-import
-                    sources from Genesys.
+                    If you forgot the passphrase, reset local data and add your sources again from
+                    Genesys.
                   </Callout>
                 </div>
               )}
@@ -188,11 +187,12 @@ export function VaultGate() {
               >
                 {busy ? (
                   <>
-                    <Spinner /> {isCreate ? 'Creating…' : 'Decrypting…'}
+                    <Spinner /> {isCreate ? 'Creating…' : 'Unlocking…'}
                   </>
                 ) : (
                   <>
-                    <Icon name="key" size={16} /> {isCreate ? 'Create vault' : 'Unlock vault'}
+                    <Icon name="key" size={16} />{' '}
+                    {isCreate ? 'Create local storage' : 'Unlock'}
                   </>
                 )}
               </Btn>
@@ -202,8 +202,8 @@ export function VaultGate() {
           {isCorrupt && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Callout tone="danger" icon="alertCircle">
-                Restore from a previously exported encrypted blob in Settings, or reset to start
-                fresh. Your Genesys sources are unaffected and can be re-discovered.
+                Restore from a backup in Settings, or reset to start fresh. Your Genesys sources are
+                unaffected and can be added again.
               </Callout>
               <Btn
                 variant="danger"
@@ -213,7 +213,7 @@ export function VaultGate() {
                   toast({
                     tone: 'info',
                     title: 'Local data reset',
-                    body: 'A fresh empty vault can now be created.',
+                    body: 'You can now create fresh local storage.',
                   });
                 }}
               >
@@ -231,13 +231,10 @@ export function VaultGate() {
 
         <div className="row" style={{ justifyContent: 'center', gap: 14, marginTop: 18 }}>
           <span className="row faint" style={{ fontSize: 11.5, gap: 5 }}>
-            <Icon name="shieldCheck" size={13} /> AES-GCM
+            <Icon name="shieldCheck" size={13} /> Protected locally
           </span>
           <span className="row faint" style={{ fontSize: 11.5, gap: 5 }}>
-            <Icon name="cpu" size={13} /> PBKDF2-SHA-256
-          </span>
-          <span className="row faint" style={{ fontSize: 11.5, gap: 5 }}>
-            <Icon name="database" size={13} /> No server DB
+            <Icon name="database" size={13} /> Data stays on this device
           </span>
         </div>
       </div>

@@ -17,7 +17,13 @@ import type {
   SyncType,
 } from '@/lib/types';
 import { genesysRequest, type GenesysResult } from './http';
+import type { GenesysAuthContext } from './oauth';
 import { logger } from '../logger';
+
+export interface GenesysClientContext {
+  authContext?: GenesysAuthContext;
+  onAuthContextUpdated?: (context: GenesysAuthContext) => void;
+}
 
 interface UnwrapContext {
   unknownCode: ErrorCode;
@@ -99,6 +105,7 @@ function nextPath(nextUri: string | null | undefined): string | null {
 
 export async function listSources(
   options: { pageSize?: number } = {},
+  context: GenesysClientContext = {},
 ): Promise<GenesysSourceSummary[]> {
   const out: GenesysSourceSummary[] = [];
   let path: string | null = GENESYS_ENDPOINTS.listSources();
@@ -113,6 +120,7 @@ export async function listSources(
         idempotency: 'idempotent',
         query,
         parse: (json) => genesysSourceListSchema.parse(json ?? {}),
+        ...context,
       });
     const data = unwrap(result, { unknownCode: 'GENESYS_UPSTREAM_ERROR' });
     for (const e of data.entities) out.push(normalizeSource(e));
@@ -131,12 +139,16 @@ export async function listSources(
   return out;
 }
 
-export async function getSource(sourceId: string): Promise<GenesysSourceDetail> {
+export async function getSource(
+  sourceId: string,
+  context: GenesysClientContext = {},
+): Promise<GenesysSourceDetail> {
   const result = await genesysRequest({
     path: GENESYS_ENDPOINTS.source(sourceId),
     method: 'GET',
     idempotency: 'idempotent',
     parse: (json) => genesysSourceSummarySchema.parse(json ?? {}),
+    ...context,
   });
   return normalizeSource(
     unwrap(result, { unknownCode: 'GENESYS_UPSTREAM_ERROR', notFoundCode: 'SOURCE_NOT_FOUND' }),
@@ -145,6 +157,7 @@ export async function getSource(sourceId: string): Promise<GenesysSourceDetail> 
 
 export async function getSourceSynchronizations(
   sourceId: string,
+  context: GenesysClientContext = {},
 ): Promise<GenesysSynchronizationSummary[]> {
   const out: GenesysSynchronizationSummary[] = [];
   let path: string | null = GENESYS_ENDPOINTS.sourceSynchronizations(sourceId);
@@ -157,6 +170,7 @@ export async function getSourceSynchronizations(
         idempotency: 'idempotent',
         query,
         parse: (json) => genesysSynchronizationListSchema.parse(json ?? {}),
+        ...context,
       });
     const data = unwrap(result, {
       unknownCode: 'GENESYS_UPSTREAM_ERROR',
@@ -179,25 +193,30 @@ export async function getSourceSynchronizations(
 export async function getSourceSynchronization(
   sourceId: string,
   synchronizationId: string,
+  context: GenesysClientContext = {},
 ): Promise<GenesysSynchronizationSummary> {
   const result = await genesysRequest({
     path: GENESYS_ENDPOINTS.sourceSynchronization(sourceId, synchronizationId),
     method: 'GET',
     idempotency: 'idempotent',
     parse: (json) => genesysSynchronizationSchema.parse(json ?? {}),
+    ...context,
   });
   return normalizeSync(
     unwrap(result, { unknownCode: 'GENESYS_UPSTREAM_ERROR', notFoundCode: 'SOURCE_NOT_FOUND' }),
   );
 }
 
-export async function getOrgSynchronizations(): Promise<GenesysSynchronizationSummary[]> {
+export async function getOrgSynchronizations(
+  context: GenesysClientContext = {},
+): Promise<GenesysSynchronizationSummary[]> {
   const result = await genesysRequest({
     path: GENESYS_ENDPOINTS.orgSynchronizations(),
     method: 'GET',
     idempotency: 'idempotent',
     query: { pageSize: 100 },
     parse: (json) => genesysSynchronizationListSchema.parse(json ?? {}),
+    ...context,
   });
   const data = unwrap(result, { unknownCode: 'GENESYS_UPSTREAM_ERROR' });
   return data.entities.map(normalizeSync);
@@ -207,13 +226,17 @@ export async function getOrgSynchronizations(): Promise<GenesysSynchronizationSu
 /* Mutating endpoints (non-idempotent)                                */
 /* ------------------------------------------------------------------ */
 
-export async function createSource(name: string): Promise<GenesysSourceDetail> {
+export async function createSource(
+  name: string,
+  context: GenesysClientContext = {},
+): Promise<GenesysSourceDetail> {
   const result = await genesysRequest({
     path: GENESYS_ENDPOINTS.createSource(),
     method: 'POST',
     idempotency: 'nonidempotent',
     body: { name, type: FILE_UPLOAD_SOURCE_TYPE, triggerType: MANUAL_TRIGGER_TYPE },
     parse: (json) => genesysSourceSummarySchema.parse(json ?? {}),
+    ...context,
   });
   return normalizeSource(
     unwrap(result, { unknownCode: 'SOURCE_CREATE_UNKNOWN', failCode: 'SOURCE_CREATE_FAILED' }),
@@ -223,6 +246,7 @@ export async function createSource(name: string): Promise<GenesysSourceDetail> {
 export async function startSynchronization(
   sourceId: string,
   type: SyncType,
+  context: GenesysClientContext = {},
 ): Promise<GenesysSynchronizationSummary> {
   const result = await genesysRequest({
     path: GENESYS_ENDPOINTS.sourceSynchronizations(sourceId),
@@ -230,6 +254,7 @@ export async function startSynchronization(
     idempotency: 'nonidempotent',
     body: { type },
     parse: (json) => genesysSynchronizationSchema.parse(json ?? {}),
+    ...context,
   });
   return normalizeSync(
     unwrap(result, {
@@ -254,6 +279,7 @@ export async function requestUploadUrl(
   sourceId: string,
   synchronizationId: string,
   input: RequestUploadInput,
+  context: GenesysClientContext = {},
 ): Promise<GenesysUploadTicket> {
   const body: Record<string, unknown> = { fileName: input.fileName };
   if (input.contentMd5) body.contentMd5 = input.contentMd5;
@@ -269,6 +295,7 @@ export async function requestUploadUrl(
     idempotency: 'nonidempotent',
     body,
     parse: (json) => genesysUploadTicketSchema.parse(json ?? {}),
+    ...context,
   });
   const ticket = unwrap(result, {
     unknownCode: 'UPLOAD_TICKET_UNKNOWN',
@@ -282,6 +309,7 @@ export async function patchSynchronization(
   sourceId: string,
   synchronizationId: string,
   status: 'Completed' | 'Cancelled',
+  context: GenesysClientContext = {},
 ): Promise<GenesysSynchronizationSummary> {
   const unknownCode: ErrorCode =
     status === 'Completed' ? 'COMPLETION_UNKNOWN' : 'CANCELLATION_UNKNOWN';
@@ -292,13 +320,18 @@ export async function patchSynchronization(
     idempotency: 'nonidempotent',
     body: { status },
     parse: (json) => genesysSynchronizationSchema.parse(json ?? {}),
+    ...context,
   });
   return normalizeSync(unwrap(result, { unknownCode, failCode, notFoundCode: 'SOURCE_NOT_FOUND' }));
 }
 
 /* ---- feature-flagged lifecycle endpoints ---- */
 
-export async function updateSource(sourceId: string, name: string): Promise<GenesysSourceDetail> {
+export async function updateSource(
+  sourceId: string,
+  name: string,
+  context: GenesysClientContext = {},
+): Promise<GenesysSourceDetail> {
   // Only the FileUpload-safe `name` field is ever sent (PRODUCT.md §4.4).
   const result = await genesysRequest({
     path: GENESYS_ENDPOINTS.source(sourceId),
@@ -306,18 +339,23 @@ export async function updateSource(sourceId: string, name: string): Promise<Gene
     idempotency: 'nonidempotent',
     body: { name },
     parse: (json) => genesysSourceSummarySchema.parse(json ?? {}),
+    ...context,
   });
   return normalizeSource(
     unwrap(result, { unknownCode: 'SOURCE_UPDATE_FAILED', failCode: 'SOURCE_UPDATE_FAILED' }),
   );
 }
 
-export async function deleteSource(sourceId: string): Promise<void> {
+export async function deleteSource(
+  sourceId: string,
+  context: GenesysClientContext = {},
+): Promise<void> {
   const result = await genesysRequest<null>({
     path: GENESYS_ENDPOINTS.source(sourceId),
     method: 'DELETE',
     idempotency: 'nonidempotent',
     parse: () => null,
+    ...context,
   });
   if (result.kind === 'ok') return;
   if (result.kind === 'unknown') throw new AppError('SOURCE_DELETE_UNKNOWN');
