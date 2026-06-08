@@ -105,16 +105,19 @@ describe('Genesys client', () => {
     await expect(client.listSources()).rejects.toMatchObject({ code: 'GENESYS_PERMISSION_DENIED' });
   });
 
-  it('creates a source (POST FileUpload/Manual body)', async () => {
-    let sentBody: unknown;
+  it('creates a source (POST FileUpload body, no extra fields)', async () => {
+    let sentBody: Record<string, unknown> = {};
     withToken((_url, init) => {
-      sentBody = JSON.parse(String(init.body));
+      sentBody = JSON.parse(String(init.body)) as Record<string, unknown>;
       return json(200, { id: 'new-src', name: 'KB', type: 'FileUpload', status: 'Active' });
     });
     const client = await fresh();
     const src = await client.createSource('KB');
     expect(src.id).toBe('new-src');
-    expect(sentBody).toMatchObject({ name: 'KB', type: 'FileUpload', triggerType: 'Manual' });
+    expect(sentBody).toMatchObject({ name: 'KB', type: 'FileUpload' });
+    // The Genesys File Connector create contract rejects unknown fields (400);
+    // ensure we never send a `triggerType`.
+    expect(sentBody).not.toHaveProperty('triggerType');
   });
 
   it('resets a source by staging a unique replacement before deleting and renaming', async () => {

@@ -144,17 +144,21 @@ export async function genesysRequest<T>(opts: GenesysRequestOptions<T>): Promise
     }
 
     const body = await res.text().catch(() => '');
+    const parsedBody = body ? safeJson(body) : undefined;
     logger.warn('genesys.request.error', {
       method: opts.method,
       url: redactUrl(url),
       status: res.status,
       outcome: cls.outcome,
+      // Redacted by the logger; surfaces the upstream reason (e.g. validation
+      // message) so failures are diagnosable without leaking secrets.
+      responseBody: parsedBody ?? (body ? body.slice(0, 500) : undefined),
     });
     return {
       kind: 'error',
       status: res.status,
       retryableExhausted: cls.outcome === 'RetryableFailure',
-      body: body ? safeJson(body) : undefined,
+      body: parsedBody,
     };
   }
 

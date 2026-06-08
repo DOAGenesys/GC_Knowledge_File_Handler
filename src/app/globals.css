@@ -1361,10 +1361,10 @@ textarea:focus-visible {
   background: oklch(0.2 0.02 264 / 0.42);
   backdrop-filter: blur(6px);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   overflow-y: auto;
-  padding: clamp(8px, 3dvh, 24px) 24px;
+  padding: 16px;
   animation: fade 0.16s ease forwards;
 }
 [data-theme='dark'] .overlay {
@@ -1377,9 +1377,8 @@ textarea:focus-visible {
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 480px;
-  max-height: calc(100vh - 16px);
-  max-height: calc(100dvh - 16px);
-  margin: auto 0;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow: hidden;
   display: flex;
   flex-direction: column;

@@ -116,6 +116,3 @@ export const GENESYS_LOGO_SRC = '/images/Genesys_logo.png';
 
 /** Genesys source `type` value this product manages. */
 export const FILE_UPLOAD_SOURCE_TYPE = 'FileUpload';
-
-/** Genesys source `triggerType` for manual FileUpload sync. */
-export const MANUAL_TRIGGER_TYPE = 'Manual';

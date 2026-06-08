@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { AppError, type ErrorCode } from '@/lib/errors';
-import { FILE_UPLOAD_SOURCE_TYPE, GENESYS_ENDPOINTS, MANUAL_TRIGGER_TYPE } from '@/lib/constants';
+import { FILE_UPLOAD_SOURCE_TYPE, GENESYS_ENDPOINTS } from '@/lib/constants';
 import {
   genesysSourceListSchema,
   genesysSourceSummarySchema,
@@ -250,7 +250,9 @@ export async function createSource(
     path: GENESYS_ENDPOINTS.createSource(),
     method: 'POST',
     idempotency: 'nonidempotent',
-    body: { name, type: FILE_UPLOAD_SOURCE_TYPE, triggerType: MANUAL_TRIGGER_TYPE },
+    // Genesys Knowledge Fabric File Connector create contract accepts `name`
+    // and `type` only; sending extra fields is rejected with a 400.
+    body: { name, type: FILE_UPLOAD_SOURCE_TYPE },
     parse: (json) => genesysSourceSummarySchema.parse(json ?? {}),
     ...context,
   });
