@@ -64,6 +64,5 @@ export interface ActiveRunState {
   lastRemoteStatus: string | null;
   lastRemoteCheckedAt: number | null;
   currentStep: string | null;
-  stepStates: Record<string, 'pending' | 'active' | 'done' | 'error'>;
   errorSummary: string | null;
 }

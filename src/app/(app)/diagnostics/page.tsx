@@ -21,7 +21,6 @@ interface ServerCheck {
 
 interface DiagnosticsResponse {
   checks: ServerCheck[];
-  readiness: unknown;
 }
 
 interface DiagCheck {
@@ -394,7 +393,8 @@ export default function DiagnosticsPage() {
               <Callout tone="info" icon="lock" title="Support-only — disabled by default">
                 This organization-wide view is gated behind{' '}
                 <span className="mono">ENABLE_ORG_SYNC_DIAGNOSTICS</span>. It is intended for
-                support staff who lost local vault history. Enable it in Settings only when needed.
+                support staff who lost local vault history. Enable it in deployment env only when
+                needed.
               </Callout>
             </div>
           ) : !orgRows ? (

@@ -1,6 +1,6 @@
 /**
  * Centralized, stable error codes and their user-facing presentation
- * (PRODUCT.md §16, TODO Block 20). Codes are stable identifiers safe to log and
+ * (PRODUCT.md §16). Codes are stable identifiers safe to log and
  * include in support bundles. User messages never contain secrets, tokens, URLs
  * or raw provider responses.
  */
@@ -34,17 +34,11 @@ export const ERROR_CODES = [
   'SOURCE_UPDATE_FAILED',
   'SOURCE_DELETE_FAILED',
   'SOURCE_DELETE_UNKNOWN',
-  'SOURCE_DELETE_BLOCKED_ACTIVE_SYNC',
   // Synchronization lifecycle
   'SYNC_START_FAILED',
   'SYNC_START_UNKNOWN',
   'UPLOAD_TICKET_FAILED',
   'UPLOAD_TICKET_UNKNOWN',
-  'UPLOAD_URL_EXPIRED',
-  'BROWSER_UPLOAD_FAILED',
-  'BROWSER_UPLOAD_CORS',
-  'UPLOAD_RESULT_UNKNOWN',
-  'FILE_NEEDS_RESELECT',
   'COMPLETION_FAILED',
   'COMPLETION_UNKNOWN',
   'CANCELLATION_FAILED',
@@ -52,9 +46,6 @@ export const ERROR_CODES = [
   // Validation
   'FILE_VALIDATION_FAILED',
   // Infra
-  'VAULT_ERROR',
-  'WORKFLOW_RUNTIME_ERROR',
-  'NETWORK_OFFLINE',
   'RATE_LIMITED',
   'GENESYS_UPSTREAM_ERROR',
   'UNKNOWN_ERROR',
@@ -204,14 +195,6 @@ export const ERROR_META: Record<ErrorCode, ErrorMeta> = {
     nextAction: 'Verify the source no longer exists in Genesys before retrying.',
     httpStatus: 504,
   },
-  SOURCE_DELETE_BLOCKED_ACTIVE_SYNC: {
-    code: 'SOURCE_DELETE_BLOCKED_ACTIVE_SYNC',
-    severity: 'error',
-    retryable: false,
-    message: 'A sync for this source is active or ambiguous.',
-    nextAction: 'Resolve or cancel the sync before deleting.',
-    httpStatus: 409,
-  },
   SYNC_START_FAILED: {
     code: 'SYNC_START_FAILED',
     severity: 'error',
@@ -243,46 +226,6 @@ export const ERROR_META: Record<ErrorCode, ErrorMeta> = {
     message: 'The upload URL request outcome is unknown.',
     nextAction: 'Pause and verify before retrying this file.',
     httpStatus: 504,
-  },
-  UPLOAD_URL_EXPIRED: {
-    code: 'UPLOAD_URL_EXPIRED',
-    severity: 'warning',
-    retryable: true,
-    message: 'The upload URL expired before the upload completed.',
-    nextAction: 'Request a fresh upload URL and retry.',
-    httpStatus: 410,
-  },
-  BROWSER_UPLOAD_FAILED: {
-    code: 'BROWSER_UPLOAD_FAILED',
-    severity: 'warning',
-    retryable: true,
-    message: 'The browser upload failed.',
-    nextAction: 'Retry the upload for this file.',
-    httpStatus: 502,
-  },
-  BROWSER_UPLOAD_CORS: {
-    code: 'BROWSER_UPLOAD_CORS',
-    severity: 'warning',
-    retryable: false,
-    message: 'The browser could not read the upload response (likely CORS).',
-    nextAction: 'Enable the streaming proxy fallback, or verify the upload in Genesys.',
-    httpStatus: 502,
-  },
-  UPLOAD_RESULT_UNKNOWN: {
-    code: 'UPLOAD_RESULT_UNKNOWN',
-    severity: 'warning',
-    retryable: false,
-    message: 'The upload result could not be confirmed.',
-    nextAction: 'Reselect and retry the file, or verify in Genesys.',
-    httpStatus: 504,
-  },
-  FILE_NEEDS_RESELECT: {
-    code: 'FILE_NEEDS_RESELECT',
-    severity: 'warning',
-    retryable: false,
-    message: 'The browser no longer holds this file.',
-    nextAction: 'Reselect the original file to continue.',
-    httpStatus: 409,
   },
   COMPLETION_FAILED: {
     code: 'COMPLETION_FAILED',
@@ -323,30 +266,6 @@ export const ERROR_META: Record<ErrorCode, ErrorMeta> = {
     message: 'One or more files failed validation.',
     nextAction: 'Fix blocking validation errors before starting the sync.',
     httpStatus: 400,
-  },
-  VAULT_ERROR: {
-    code: 'VAULT_ERROR',
-    severity: 'error',
-    retryable: false,
-    message: 'The local encrypted vault could not be read or written.',
-    nextAction: 'Unlock the vault, restore from an export, or reset local data.',
-    httpStatus: 500,
-  },
-  WORKFLOW_RUNTIME_ERROR: {
-    code: 'WORKFLOW_RUNTIME_ERROR',
-    severity: 'error',
-    retryable: true,
-    message: 'The durable workflow encountered a runtime error.',
-    nextAction: 'Retry, or copy a support bundle for diagnosis.',
-    httpStatus: 500,
-  },
-  NETWORK_OFFLINE: {
-    code: 'NETWORK_OFFLINE',
-    severity: 'warning',
-    retryable: true,
-    message: 'The network appears to be offline.',
-    nextAction: 'Reconnect — uploads resume automatically when back online.',
-    httpStatus: 503,
   },
   RATE_LIMITED: {
     code: 'RATE_LIMITED',

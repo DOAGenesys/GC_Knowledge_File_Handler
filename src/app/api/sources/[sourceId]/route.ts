@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { AppError } from '@/lib/errors';
 import { FILE_UPLOAD_SOURCE_TYPE } from '@/lib/constants';
 import { deleteSourceBodySchema, updateSourceBodySchema, uuidSchema } from '@/lib/schemas';
-import { requireAuth, requireCsrf, requireFeature, requireGenesys } from '@/server/auth/guards';
+import { requireAuth, requireCsrf, requireFeature } from '@/server/auth/guards';
 import { deleteSource, getSource, updateSource } from '@/server/genesys/client';
 import { jsonOk, readJsonBody, route } from '@/server/http/route-helpers';
 
@@ -22,7 +22,6 @@ function parseSourceId(raw: string | undefined): string {
 // Validate / fetch a specific source (core read; always available when authed).
 export const GET = route(async (req, ctx) => {
   await requireAuth(req);
-  requireGenesys();
   const { sourceId } = await ctx.params;
   const source = await getSource(parseSourceId(sourceId));
   return jsonOk({ source: annotate(source) });
@@ -33,7 +32,6 @@ export const PUT = route(async (req: NextRequest, ctx) => {
   await requireAuth(req);
   requireCsrf(req);
   requireFeature('ENABLE_SOURCE_UPDATE');
-  requireGenesys();
   const { sourceId } = await ctx.params;
   const { name } = await readJsonBody(req, updateSourceBodySchema, { maxBytes: 4096 });
   const source = await updateSource(parseSourceId(sourceId), name);
@@ -44,7 +42,6 @@ export const PUT = route(async (req: NextRequest, ctx) => {
 export const DELETE = route(async (req: NextRequest, ctx) => {
   await requireAuth(req);
   requireCsrf(req);
-  requireGenesys();
   const { sourceId } = await ctx.params;
   const id = parseSourceId(sourceId);
   const body = await readJsonBody(req, deleteSourceBodySchema, { maxBytes: 4096 });

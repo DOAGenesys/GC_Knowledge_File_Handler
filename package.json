@@ -23,8 +23,7 @@
     "test:e2e": "playwright test",
     "security:scope": "vitest run src/server/genesys/__tests__/endpoint-scope.test.ts",
     "security:audit": "npm audit --omit=dev --audit-level=high",
-    "check": "npm run format:check && npm run lint:strict && npm run typecheck && npm run test",
-    "analyze": "ANALYZE=true next build"
+    "check": "npm run format:check && npm run lint:strict && npm run typecheck && npm run test"
   },
   "dependencies": {
     "@workflow/next": "^4.0.7",

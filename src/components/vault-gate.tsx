@@ -191,8 +191,7 @@ export function VaultGate() {
                   </>
                 ) : (
                   <>
-                    <Icon name="key" size={16} />{' '}
-                    {isCreate ? 'Create local storage' : 'Unlock'}
+                    <Icon name="key" size={16} /> {isCreate ? 'Create local storage' : 'Unlock'}
                   </>
                 )}
               </Btn>

@@ -2,6 +2,7 @@
 
 import { AppProvider, useApp } from '@/components/app-context';
 import { AppShell } from '@/components/app-shell';
+import { RunControllerProvider } from '@/components/run-controller';
 import { Toasts } from '@/components/toasts';
 import { VaultGate } from '@/components/vault-gate';
 import { Spinner } from '@/components/ui';
@@ -20,7 +21,11 @@ function Gate({ children }: { children: React.ReactNode }) {
   if (vaultState === 'locked' || vaultState === 'absent' || vaultState === 'corrupt') {
     return <VaultGate />;
   }
-  return <AppShell>{children}</AppShell>;
+  return (
+    <RunControllerProvider>
+      <AppShell>{children}</AppShell>
+    </RunControllerProvider>
+  );
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

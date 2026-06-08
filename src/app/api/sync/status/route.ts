@@ -11,10 +11,10 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Stream a run's workflow messages to the authenticated browser as
- * Server-Sent Events. The stream carries in-memory upload tickets (pre-signed
- * URL + headers); they are delivered over the authenticated HTTPS channel and
- * are never persisted. The browser uploads bytes directly to the URL, then
- * reports the result to /api/sync/upload-callback.
+ * Server-Sent Events. The stream only carries non-secret workflow signals such
+ * as `ticketReady`; the browser fetches a fresh upload ticket from
+ * /api/sync/upload-ticket, uploads bytes, then reports the result to
+ * /api/sync/upload-callback.
  *
  * NOTE: the exact chunk shape emitted by `run.getReadable()` is normalized
  * defensively below; verify against the deployed Workflow SDK and adjust the

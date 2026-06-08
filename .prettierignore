@@ -2,7 +2,6 @@ node_modules
 .next
 out
 coverage
-design-intake
 playwright-report
 test-results
 package-lock.json

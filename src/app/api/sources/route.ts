@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { FILE_UPLOAD_SOURCE_TYPE } from '@/lib/constants';
 import { createSourceBodySchema } from '@/lib/schemas';
-import { requireAuth, requireCsrf, requireFeature, requireGenesys } from '@/server/auth/guards';
+import { requireAuth, requireCsrf, requireFeature } from '@/server/auth/guards';
 import { createSource, getSource, listSources } from '@/server/genesys/client';
 import { jsonOk, readJsonBody, route } from '@/server/http/route-helpers';
 
@@ -16,7 +16,6 @@ function annotate<T extends { type: string }>(s: T): T & { isCompatibleFileUploa
 export const GET = route(async (req: NextRequest) => {
   await requireAuth(req);
   requireFeature('ENABLE_SOURCE_DISCOVERY');
-  requireGenesys();
   const sources = (await listSources()).map(annotate);
   return jsonOk({ sources });
 });
@@ -26,7 +25,6 @@ export const POST = route(async (req: NextRequest) => {
   await requireAuth(req);
   requireCsrf(req);
   requireFeature('ENABLE_SOURCE_CREATION');
-  requireGenesys();
   const { name } = await readJsonBody(req, createSourceBodySchema, { maxBytes: 4096 });
   const created = await createSource(name);
   // Best-effort post-create validation via GET when available.

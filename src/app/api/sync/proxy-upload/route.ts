@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { AppError } from '@/lib/errors';
 import { getServerConfig } from '@/server/config';
-import { requireAuth, requireCsrf, requireFeature } from '@/server/auth/guards';
+import { requireAuth, requireCsrf } from '@/server/auth/guards';
 import { jsonError, jsonOk } from '@/server/http/route-helpers';
 import { logger } from '@/server/logger';
 import { redactUrl } from '@/server/redact';
@@ -16,35 +16,10 @@ export const dynamic = 'force-dynamic';
  * request body straight to the upstream URL without buffering the whole file or
  * writing it to disk/storage.
  *
- * SSRF guard: normal uploads must carry a short-lived server-signed proxy token
- * minted from a Genesys-issued ticket. Legacy caller-provided URLs are accepted
- * only when ENABLE_PROXY_UPLOAD is on and the host matches
- * GENESYS_UPLOAD_CONNECT_SRC. URLs and signed headers are never persisted or
+ * SSRF guard: uploads must carry a short-lived server-signed proxy token minted
+ * from a Genesys-issued ticket. URLs and signed headers are never persisted or
  * logged unredacted.
  */
-function hostAllowed(targetUrl: string, patterns: string[]): boolean {
-  let u: URL;
-  try {
-    u = new URL(targetUrl);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== 'https:') return false;
-  return patterns.some((p) => {
-    let host: string;
-    try {
-      host = new URL(p).host;
-    } catch {
-      return false;
-    }
-    if (host.startsWith('*.')) {
-      const base = host.slice(2);
-      return u.host === base || u.host.endsWith(`.${base}`);
-    }
-    return u.host === host;
-  });
-}
-
 export async function PUT(req: NextRequest): Promise<Response> {
   try {
     await requireAuth(req);
@@ -52,31 +27,11 @@ export async function PUT(req: NextRequest): Promise<Response> {
 
     const cfg = getServerConfig();
     const signedProxy = await verifyProxyUploadToken(req.headers.get('x-gkfsm-proxy-token'));
-    let targetUrl = signedProxy?.url ?? '';
-    let signedHeaders = signedProxy?.headers ?? {};
-
     if (!signedProxy) {
-      requireFeature('ENABLE_PROXY_UPLOAD');
-      if (cfg.uploadConnectSrc.length === 0) {
-        throw new AppError('APP_FORBIDDEN_FEATURE_DISABLED', {
-          detail: 'no upload host allowlist',
-        });
-      }
-
-      targetUrl = req.headers.get('x-gkfsm-upload-url') ?? '';
-      if (!hostAllowed(targetUrl, cfg.uploadConnectSrc)) {
-        throw new AppError('APP_BAD_REQUEST', { detail: 'upload host not allowlisted' });
-      }
-
-      const headerBlob = req.headers.get('x-gkfsm-upload-headers');
-      if (headerBlob) {
-        try {
-          signedHeaders = JSON.parse(Buffer.from(headerBlob, 'base64').toString('utf8'));
-        } catch {
-          throw new AppError('APP_BAD_REQUEST', { detail: 'bad upload headers' });
-        }
-      }
+      throw new AppError('APP_BAD_REQUEST', { detail: 'missing or invalid proxy token' });
     }
+    const targetUrl = signedProxy.url;
+    const signedHeaders = signedProxy.headers;
 
     const limit = cfg.limits.proxyUploadMaxBytes;
     const declared = Number(req.headers.get('content-length') ?? '0');

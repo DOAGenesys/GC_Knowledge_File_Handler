@@ -2,13 +2,8 @@ import { expect, test } from '@playwright/test';
 
 /**
  * Security & access E2E. These run against the built app with NO external
- * dependencies (they assert the access gate + security headers). The full
- * sandbox-sync flow (create source, upload, complete) requires a Genesys
- * sandbox and is documented in docs/testing.md.
- *
- * Requires the dev/prod server to have ADMIN_USERNAME / ADMIN_PASSWORD /
- * APP_SESSION_SECRET set. The login test is skipped unless E2E_ADMIN_USERNAME /
- * E2E_ADMIN_PASSWORD are provided to the test runner.
+ * dependencies. Authenticated Genesys PKCE flows require a real tenant and are
+ * covered manually/deployment-side, not by a skipped local placeholder.
  */
 
 test('unauthenticated visit to a protected page redirects to /login', async ({ page }) => {
@@ -39,37 +34,4 @@ test('responses carry the strict security headers + nonce CSP', async ({ request
   expect(res.headers()['x-frame-options']).toBe('DENY');
   expect(res.headers()['x-content-type-options']).toBe('nosniff');
   expect(res.headers()['strict-transport-security']).toContain('max-age=');
-});
-
-const creds = {
-  username: process.env.E2E_ADMIN_USERNAME,
-  password: process.env.E2E_ADMIN_PASSWORD,
-};
-
-test.describe('authenticated flows', () => {
-  test.skip(
-    !creds.username || !creds.password,
-    'Set E2E_ADMIN_USERNAME / E2E_ADMIN_PASSWORD to run',
-  );
-
-  test('login → create vault → reach core routes', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel('Username').fill(creds.username!);
-    await page.getByLabel('Password').fill(creds.password!);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-
-    // First run: create the local vault.
-    const create = page.getByRole('button', { name: 'Create vault' });
-    if (await create.isVisible().catch(() => false)) {
-      await page.getByLabel('Vault passphrase').fill('e2e-vault-passphrase');
-      await page.getByLabel('Confirm passphrase').fill('e2e-vault-passphrase');
-      await create.click();
-    }
-
-    await expect(page.getByText('Welcome back')).toBeVisible();
-    for (const path of ['/sources', '/new', '/run', '/history', '/settings', '/diagnostics']) {
-      await page.goto(path);
-      await expect(page.locator('.page-title, .page')).toBeVisible();
-    }
-  });
 });

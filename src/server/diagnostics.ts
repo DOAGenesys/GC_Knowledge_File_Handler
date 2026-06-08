@@ -2,7 +2,7 @@ import 'server-only';
 
 import { isAppError } from '@/lib/errors';
 import { getServerConfig } from './config';
-import { listSources } from './genesys/client';
+import { getOrgSynchronizations, getSourceSynchronizations, listSources } from './genesys/client';
 import { currentGenesysIdentity, getAccessToken } from './genesys/oauth';
 import { logger } from './logger';
 import { redactErrorMessage } from './redact';
@@ -64,10 +64,12 @@ export async function runServerDiagnostics(): Promise<ServerCheck[]> {
   });
 
   // Source list permission probe (only if discovery enabled + token works).
+  let sampleSourceId: string | null = null;
   if (cfg.features.ENABLE_SOURCE_DISCOVERY && tokenOk) {
     let status: CheckStatus = 'ok';
     try {
-      await listSources({ pageSize: 1 });
+      const sources = await listSources({ pageSize: 1 });
+      sampleSourceId = sources[0]?.id ?? null;
     } catch (err) {
       status = isAppError(err) && err.code === 'GENESYS_PERMISSION_DENIED' ? 'fail' : 'warn';
       logger.warn('diagnostics.source_list.failed', {
@@ -93,21 +95,63 @@ export async function runServerDiagnostics(): Promise<ServerCheck[]> {
     });
   }
 
-  checks.push({
-    key: 'srchist',
-    label: 'Source sync history',
-    detail: 'GET …/synchronizations',
-    group: 'Knowledge API',
-    status: cfg.features.ENABLE_SOURCE_HISTORY ? 'ok' : 'skip',
-  });
+  if (cfg.features.ENABLE_SOURCE_HISTORY && tokenOk && sampleSourceId) {
+    let status: CheckStatus = 'ok';
+    try {
+      await getSourceSynchronizations(sampleSourceId);
+    } catch (err) {
+      status = isAppError(err) && err.code === 'GENESYS_PERMISSION_DENIED' ? 'fail' : 'warn';
+      logger.warn('diagnostics.source_history.failed', {
+        status,
+        code: isAppError(err) ? err.code : undefined,
+        detail: redactErrorMessage(err),
+      });
+    }
+    checks.push({
+      key: 'srchist',
+      label: 'Source sync history',
+      detail: 'GET …/synchronizations',
+      group: 'Knowledge API',
+      status,
+    });
+  } else {
+    checks.push({
+      key: 'srchist',
+      label: 'Source sync history',
+      detail: 'GET …/synchronizations',
+      group: 'Knowledge API',
+      status: 'skip',
+    });
+  }
 
-  checks.push({
-    key: 'orgsync',
-    label: 'Org-wide sync diagnostics',
-    detail: 'GET /sources/synchronizations',
-    group: 'Knowledge API',
-    status: cfg.features.ENABLE_ORG_SYNC_DIAGNOSTICS ? 'ok' : 'skip',
-  });
+  if (cfg.features.ENABLE_ORG_SYNC_DIAGNOSTICS && tokenOk) {
+    let status: CheckStatus = 'ok';
+    try {
+      await getOrgSynchronizations();
+    } catch (err) {
+      status = isAppError(err) && err.code === 'GENESYS_PERMISSION_DENIED' ? 'fail' : 'warn';
+      logger.warn('diagnostics.org_sync.failed', {
+        status,
+        code: isAppError(err) ? err.code : undefined,
+        detail: redactErrorMessage(err),
+      });
+    }
+    checks.push({
+      key: 'orgsync',
+      label: 'Org-wide sync diagnostics',
+      detail: 'GET /sources/synchronizations',
+      group: 'Knowledge API',
+      status,
+    });
+  } else {
+    checks.push({
+      key: 'orgsync',
+      label: 'Org-wide sync diagnostics',
+      detail: 'GET /sources/synchronizations',
+      group: 'Knowledge API',
+      status: 'skip',
+    });
+  }
 
   return checks;
 }

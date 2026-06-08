@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Browser → server upload-result callback (TODO Block 13). Authenticated +
+ * Browser → server upload-result callback. Authenticated +
  * CSRF-protected, and additionally bound to a single (run, file, attempt) via a
  * signed callback token so a result cannot be forged for a different file. The
  * workflow's engine independently ignores stale/duplicate/unknown-file results.

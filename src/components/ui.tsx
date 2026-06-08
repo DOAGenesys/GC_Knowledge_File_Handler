@@ -117,10 +117,8 @@ export const STATUS_META: Record<string, StatusMeta> = {
   uploaded: { tone: 'success', icon: 'checkCircle', label: 'Uploaded' },
   UploadFailedRecoverable: { tone: 'warning', icon: 'alert', label: 'Failed — retryable' },
   failed_recoverable: { tone: 'warning', icon: 'alert', label: 'Failed — retryable' },
-  UploadFailedFatal: { tone: 'danger', icon: 'xCircle', label: 'Failed' },
   NeedsReselect: { tone: 'warning', icon: 'refresh', label: 'Reselect file' },
   needs_reselect: { tone: 'warning', icon: 'refresh', label: 'Reselect file' },
-  Skipped: { tone: 'neutral', icon: 'x', label: 'Skipped' },
   Cancelled: { tone: 'neutral', icon: 'stop', label: 'Cancelled' },
   UploadResultUnknown: { tone: 'warning', icon: 'help', label: 'Result unknown' },
   result_unknown: { tone: 'warning', icon: 'help', label: 'Result unknown' },
@@ -503,13 +501,7 @@ export function Tip({ text, children }: { text: string; children: ReactNode }) {
 }
 
 /** Hover/focus popover for field labels — supports rich content such as copy actions. */
-export function HelpTip({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+export function HelpTip({ label, children }: { label: string; children: ReactNode }) {
   return (
     <span className="tip tip-rich">
       <button type="button" className="help-tip-trigger" aria-label={label}>

@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { requireAuth, requireFeature, requireGenesys } from '@/server/auth/guards';
+import { requireAuth, requireFeature } from '@/server/auth/guards';
 import { getOrgSynchronizations } from '@/server/genesys/client';
 import { jsonOk, route } from '@/server/http/route-helpers';
 
@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic';
 export const GET = route(async (req: NextRequest) => {
   await requireAuth(req);
   requireFeature('ENABLE_ORG_SYNC_DIAGNOSTICS');
-  requireGenesys();
   const synchronizations = await getOrgSynchronizations();
   return jsonOk({ synchronizations });
 });

@@ -3,7 +3,7 @@
  * the workflow input validator, and the browser before it posts callbacks.
  *
  * Object schemas that accept browser input use `.strict()` to reject unknown
- * fields (TODO Block 3) and explicitly omit any file-byte-bearing field.
+ * fields and explicitly omit any file-byte-bearing field.
  */
 import { z } from 'zod';
 
@@ -39,7 +39,7 @@ export const manifestFileSchema = z
 
 export type ManifestFile = z.infer<typeof manifestFileSchema>;
 
-/** Input to start the sync workflow (TODO Block 7). No file bytes. */
+/** Input to start the sync workflow. No file bytes. */
 export const startSyncInputSchema = z
   .object({
     localRunKey: z.string().min(1).max(64),
@@ -77,7 +77,7 @@ export const startSyncInputSchema = z
 
 export type StartSyncInput = z.infer<typeof startSyncInputSchema>;
 
-/** Browser → server upload-result callback (TODO Block 13). No URLs/headers/bytes. */
+/** Browser → server upload-result callback. No URLs/headers/bytes. */
 export const uploadCallbackSchema = z
   .object({
     localRunKey: z.string().min(1).max(64),

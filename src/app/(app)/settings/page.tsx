@@ -413,13 +413,8 @@ export default function SettingsPage() {
                     <Badge tone={on ? 'success' : 'neutral'} icon={on ? 'check' : 'x'}>
                       {on ? 'Enabled' : 'Disabled'}
                     </Badge>
-                    <Toggle
-                      checked={on}
-                      onChange={() => undefined}
-                      label={`${f.label} (${on ? 'enabled' : 'disabled'})`}
-                    />
                     <span className="faint" style={{ fontSize: 11 }}>
-                      Managed by admin
+                      Environment managed
                     </span>
                   </div>
                 </div>
@@ -460,17 +455,6 @@ export default function SettingsPage() {
                   { value: 'direct', label: 'Direct' },
                   { value: 'proxy', label: 'Proxy fallback' },
                 ]}
-              />
-            </SettingRow>
-
-            <SettingRow
-              title="Auto-suggest safe renames"
-              desc="Offer safer file names when a selected file name is not accepted."
-            >
-              <Toggle
-                checked={prefs.autoRename}
-                onChange={(v) => setPref('autoRename', v)}
-                label="Auto-suggest safe renames"
               />
             </SettingRow>
 

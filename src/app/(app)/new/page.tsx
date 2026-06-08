@@ -286,7 +286,6 @@ export default function NewSyncPage() {
         lastRemoteStatus: null,
         lastRemoteCheckedAt: null,
         currentStep: 'source',
-        stepStates: {},
         errorSummary: null,
       };
       setActiveRun(run);
@@ -515,7 +514,7 @@ export default function NewSyncPage() {
                   <tr>
                     <th style={{ width: '40%' }}>File</th>
                     <th>Size</th>
-                <th>Check</th>
+                    <th>Check</th>
                     <th>Status</th>
                     <th aria-label="actions" />
                   </tr>

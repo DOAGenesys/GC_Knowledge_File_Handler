@@ -7,7 +7,7 @@ import { signToken, verifyToken } from '../auth/session-core';
  * Signed callback tokens bind a browser upload-result callback to exactly one
  * (run, file, attempt). The token is issued alongside the upload ticket and
  * verified in the callback route, so a callback cannot be replayed for a
- * different file/attempt even by the authenticated admin (TODO Block 13).
+ * different file/attempt even by the authenticated user.
  */
 interface CallbackClaims {
   t: 'cb';

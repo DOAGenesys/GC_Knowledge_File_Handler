@@ -6,8 +6,7 @@
  * vault and clears when site data is cleared; remote history is authoritative for
  * status but cannot restore browser-local file bytes.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import { useApp } from '@/components/app-context';
 import {
   Badge,
@@ -20,16 +19,13 @@ import {
   IconBtn,
   Modal,
   Segmented,
-  Spinner,
   StatusBadge,
 } from '@/components/ui';
 import { Icon } from '@/components/icon';
-import { api, ApiError } from '@/lib/api-client';
 import { fmtDate, fmtDateFull } from '@/lib/format';
-import type { GenesysSynchronizationSummary, SyncRunRecord } from '@/lib/types';
+import type { SyncRunRecord } from '@/lib/types';
 
 type LocalFilter = 'all' | 'completed' | 'attention';
-type HistoryView = 'local' | 'remote';
 
 const ATTENTION_STATUSES = ['NeedsUserAction', 'CompletionUnknown', 'CancellationUnknown'] as const;
 
@@ -37,30 +33,37 @@ function needsAttention(status: string): boolean {
   return (ATTENTION_STATUSES as readonly string[]).includes(status);
 }
 
-interface RemoteRow {
-  key: string;
-  synchronizationId: string;
-  sourceName: string;
-  type: string;
-  status: string;
-  uploadedCount: number;
-  fileCount: number;
-  createdAtMs: number;
-}
-
-function toMs(value: string | null | undefined): number {
-  if (!value) return 0;
-  const t = Date.parse(value);
-  return Number.isNaN(t) ? 0 : t;
+function buildSupportBundle(run: SyncRunRecord, redactNames: boolean) {
+  return {
+    workflowRunId: run.workflowRunId,
+    synchronizationId: run.synchronizationId,
+    sourceId: redactNames ? `${run.sourceId.slice(0, 6)}...` : run.sourceId,
+    sourceName: redactNames ? undefined : run.sourceName,
+    syncType: run.syncType,
+    status: run.status,
+    lastRemoteStatus: run.lastRemoteStatus,
+    counts: {
+      total: run.fileCount,
+      uploaded: run.uploadedCount,
+      failed: run.failedCount,
+      needsUserAction: run.needsUserActionCount,
+    },
+    files: run.files.map((f) => ({
+      name: redactNames ? undefined : f.uploadFileName,
+      ext: f.extension,
+      bytes: f.contentLength,
+      status: f.uploadStatus,
+      attempts: f.attempts,
+      errorCode: f.lastErrorCode,
+    })),
+  };
 }
 
 export default function HistoryPage() {
-  const { syncRuns, sources, features, toast } = useApp();
-  const router = useRouter();
+  const { syncRuns, prefs, toast } = useApp();
 
   const [selected, setSelected] = useState<SyncRunRecord | null>(null);
   const [filter, setFilter] = useState<LocalFilter>('all');
-  const [view, setView] = useState<HistoryView>('local');
 
   const filtered = useMemo(
     () =>
@@ -74,69 +77,14 @@ export default function HistoryPage() {
     [syncRuns, filter],
   );
 
-  // ---- Remote activity (Genesys) ----
-  const remoteSources = useMemo(
-    () =>
-      sources.filter(
-        (s) => !s.archived && s.isCompatibleFileUploadSource !== false && s.remoteStatus,
-      ),
-    [sources],
-  );
-
-  const [remoteRows, setRemoteRows] = useState<RemoteRow[]>([]);
-  const [remoteLoading, setRemoteLoading] = useState(false);
-  const [remoteError, setRemoteError] = useState<string | null>(null);
-
-  const remoteEnabled = features.ENABLE_SOURCE_HISTORY;
-
-  useEffect(() => {
-    if (!remoteEnabled || view !== 'remote') return;
-    let active = true;
-    const controller = new AbortController();
-
-    (async () => {
-      setRemoteLoading(true);
-      setRemoteError(null);
-      try {
-        const rows: RemoteRow[] = [];
-        for (const src of remoteSources) {
-          const { synchronizations } = await api.get<{
-            synchronizations: GenesysSynchronizationSummary[];
-          }>(`/api/sources/${src.sourceId}/synchronizations`, controller.signal);
-          for (const s of synchronizations) {
-            rows.push({
-              key: `${src.sourceId}:${s.id}`,
-              synchronizationId: s.id,
-              sourceName: src.displayName,
-              type: typeof s.type === 'string' ? s.type : String(s.type),
-              status: s.status,
-              uploadedCount: s.uploadedCount ?? 0,
-              fileCount: s.fileCount ?? 0,
-              createdAtMs: toMs(s.dateCreated),
-            });
-          }
-        }
-        rows.sort((a, b) => b.createdAtMs - a.createdAtMs);
-        if (active) setRemoteRows(rows);
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        const message =
-          err instanceof ApiError ? err.message : 'Could not load remote synchronization history.';
-        if (active) {
-          setRemoteError(message);
-          setRemoteRows([]);
-        }
-        toast({ tone: 'danger', title: 'Remote history unavailable', body: message });
-      } finally {
-        if (active) setRemoteLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [remoteEnabled, view, remoteSources, toast]);
+  const copyBundle = async (run: SyncRunRecord) => {
+    await navigator.clipboard?.writeText(JSON.stringify(buildSupportBundle(run, prefs.redactNames), null, 2));
+    toast({
+      tone: 'success',
+      title: 'Support bundle copied',
+      body: 'Redacted run details on your clipboard.',
+    });
+  };
 
   return (
     <div className="page">
@@ -147,189 +95,81 @@ export default function HistoryPage() {
         <div style={{ minWidth: 0 }}>
           <div className="page-title">History</div>
           <div className="page-desc">
-            Local run summaries from your encrypted vault, cross-checked against authoritative
-            Genesys synchronization history. Local history clears if you clear site data.
+            Redacted local run summaries from your encrypted vault. Genesys remains authoritative
+            for remote status; source detail pages show remote activity when enabled.
           </div>
         </div>
-        {view === 'local' && (
-          <Segmented
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'attention', label: 'Attention' },
-            ]}
-          />
-        )}
+        <Segmented
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'attention', label: 'Attention' },
+          ]}
+        />
       </div>
 
-      {remoteEnabled && (
-        <div style={{ marginBottom: 18 }}>
-          <Segmented
-            value={view}
-            onChange={setView}
-            accent
-            options={[
-              { value: 'local', label: 'Local vault history' },
-              { value: 'remote', label: 'Remote activity (Genesys)' },
-            ]}
-          />
-        </div>
-      )}
-
-      {view === 'local' ? (
-        <Card>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Type</th>
-                <th>Files</th>
-                <th>Local status</th>
-                <th>Remote status</th>
-                <th>Started</th>
-                <th />
+      <Card>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Type</th>
+              <th>Files</th>
+              <th>Local status</th>
+              <th>Remote status</th>
+              <th>Started</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((h) => (
+              <tr
+                key={h.localRunKey}
+                style={{ cursor: 'pointer' }}
+                onClick={() => setSelected(h)}
+              >
+                <td style={{ fontWeight: 600 }}>{h.sourceName}</td>
+                <td>
+                  <Badge tone="neutral">{h.syncType}</Badge>
+                </td>
+                <td className="mono tnum" style={{ fontSize: 12 }}>
+                  {h.uploadedCount}/{h.fileCount}
+                </td>
+                <td>
+                  <StatusBadge status={h.status} />
+                </td>
+                <td>
+                  {h.lastRemoteStatus ? (
+                    <span className="tag-mini">{h.lastRemoteStatus}</span>
+                  ) : (
+                    <span className="faint" style={{ fontSize: 12 }}>
+                      —
+                    </span>
+                  )}
+                </td>
+                <td className="faint" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                  {fmtDate(h.createdAt)}
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <Icon name="chevR" size={15} className="faint" />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filtered.map((h) => (
-                <tr
-                  key={h.localRunKey}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setSelected(h)}
-                >
-                  <td style={{ fontWeight: 600 }}>{h.sourceName}</td>
-                  <td>
-                    <Badge tone="neutral">{h.syncType}</Badge>
-                  </td>
-                  <td className="mono tnum" style={{ fontSize: 12 }}>
-                    {h.uploadedCount}/{h.fileCount}
-                  </td>
-                  <td>
-                    <StatusBadge status={h.status} />
-                  </td>
-                  <td>
-                    {h.lastRemoteStatus ? (
-                      <span className="tag-mini">{h.lastRemoteStatus}</span>
-                    ) : (
-                      <span className="faint" style={{ fontSize: 12 }}>
-                        —
-                      </span>
-                    )}
-                  </td>
-                  <td className="faint" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
-                    {fmtDate(h.createdAt)}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Icon name="chevR" size={15} className="faint" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <Empty icon="history" title="No runs to show">
-              Runs you start will appear here as redacted local summaries.
-            </Empty>
-          )}
-        </Card>
-      ) : (
-        <Card>
-          <div className="card-head">
-            <Icon name="globe" size={16} style={{ color: 'var(--accent)' }} />
-            <h3>Remote synchronization activity</h3>
-            <span className="sub mono">GET …/synchronizations</span>
-          </div>
-
-          {remoteLoading ? (
-            <div
-              className="row"
-              style={{ gap: 10, justifyContent: 'center', padding: '40px 20px' }}
-            >
-              <Spinner size={18} />
-              <span className="faint" style={{ fontSize: 13 }}>
-                Reading Genesys synchronization history…
-              </span>
-            </div>
-          ) : remoteError ? (
-            <div style={{ padding: '0 20px 18px' }}>
-              <Callout tone="danger" icon="alertCircle" title="Could not load remote history">
-                {remoteError}
-              </Callout>
-            </div>
-          ) : (
-            <>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Files</th>
-                    <th>When</th>
-                    <th>Sync ID</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {remoteRows.map((a) => (
-                    <tr key={a.key}>
-                      <td style={{ fontWeight: 600 }}>{a.sourceName}</td>
-                      <td>
-                        <Badge tone="neutral">{a.type}</Badge>
-                      </td>
-                      <td>
-                        <StatusBadge status={a.status} />
-                      </td>
-                      <td className="mono tnum" style={{ fontSize: 12 }}>
-                        {a.uploadedCount}/{a.fileCount}
-                      </td>
-                      <td className="faint" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
-                        {a.createdAtMs ? fmtDate(a.createdAtMs) : '—'}
-                      </td>
-                      <td>
-                        <span className="tag-mini">{a.synchronizationId.slice(0, 13)}…</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {remoteRows.length === 0 && (
-                <Empty icon="globe" title="No remote activity">
-                  Validate or import sources to read their Genesys synchronization history.
-                </Empty>
-              )}
-            </>
-          )}
-
-          <div style={{ padding: '0 20px 18px' }}>
-            <Callout tone="info" icon="shield">
-              Genesys is authoritative for remote sync status, but remote history cannot restore
-              browser-local file bytes — reselect is still required to resume an interrupted upload.
-            </Callout>
-          </div>
-        </Card>
-      )}
+            ))}
+          </tbody>
+        </table>
+        {filtered.length === 0 && (
+          <Empty icon="history" title="No runs to show">
+            Runs you start will appear here as redacted local summaries.
+          </Empty>
+        )}
+      </Card>
 
       <RunDetail
         run={selected}
         onClose={() => setSelected(null)}
-        onResume={() => {
-          setSelected(null);
-          toast({
-            tone: 'info',
-            title: 'Resuming run',
-            body: 'Reselect any files the browser no longer holds.',
-          });
-          router.push('/run');
-        }}
-        onCopyBundle={() =>
-          toast({
-            tone: 'success',
-            title: 'Support bundle copied',
-            body: 'Redacted run details on clipboard.',
-          })
-        }
+        onCopyBundle={(run) => void copyBundle(run)}
       />
     </div>
   );
@@ -364,13 +204,11 @@ function CountStat({
 function RunDetail({
   run,
   onClose,
-  onResume,
   onCopyBundle,
 }: {
   run: SyncRunRecord | null;
   onClose: () => void;
-  onResume: () => void;
-  onCopyBundle: () => void;
+  onCopyBundle: (run: SyncRunRecord) => void;
 }) {
   if (!run) return null;
   const attention = needsAttention(run.status);
@@ -408,14 +246,10 @@ function RunDetail({
               }
             >
               {run.errorSummary || 'This run reached an ambiguous state and was not completed.'} The
-              app prefers a safe pause over unsafe completion.
+              app prefers a safe pause over unsafe completion. If browser file handles were lost,
+              start a new sync with the same files.
               <div className="row" style={{ marginTop: 12, gap: 8 }}>
-                {run.status === 'NeedsUserAction' && (
-                  <Btn variant="primary" size="sm" icon="refresh" onClick={onResume}>
-                    Resume &amp; reselect
-                  </Btn>
-                )}
-                <Btn variant="default" size="sm" icon="copy" onClick={onCopyBundle}>
+                <Btn variant="default" size="sm" icon="copy" onClick={() => onCopyBundle(run)}>
                   Copy support bundle
                 </Btn>
               </div>
@@ -466,7 +300,6 @@ function RunDetail({
         <div className="row" style={{ gap: 20, flexWrap: 'wrap' }}>
           <CountStat tone="success" icon="checkCircle" n={run.uploadedCount} label="uploaded" />
           <CountStat tone="danger" icon="xCircle" n={run.failedCount} label="failed" />
-          <CountStat tone="neutral" icon="x" n={run.skippedCount} label="skipped" />
           {run.needsUserActionCount > 0 && (
             <CountStat
               tone="warning"
@@ -487,7 +320,7 @@ function RunDetail({
       </div>
 
       <div className="modal-foot">
-        <Btn variant="ghost" icon="copy" onClick={onCopyBundle}>
+        <Btn variant="ghost" icon="copy" onClick={() => onCopyBundle(run)}>
           Copy support bundle
         </Btn>
         <Btn variant="default" onClick={onClose}>

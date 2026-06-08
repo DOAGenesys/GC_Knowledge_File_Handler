@@ -369,15 +369,6 @@ export async function currentGenesysIdentity(): Promise<{
   };
 }
 
-export async function isGenesysSessionAvailable(): Promise<boolean> {
-  return Boolean(await getGenesysAuthContextFromCookie());
-}
-
-/** Test/operational helper retained for callers that clear auth state on 401. */
-export function __resetTokenCache(): void {
-  // Token state is cookie/workflow scoped in the PKCE flow, not process-global.
-}
-
 export function authErrorRedirect(req: NextRequest, code: string): URL {
   const url = new URL('/login', getPublicOrigin(req));
   url.searchParams.set('auth_error', code);

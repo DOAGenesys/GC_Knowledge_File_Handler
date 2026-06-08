@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/icon';
 import { Badge, Bar, Btn, Callout, Card, CopyId, StatusBadge } from '@/components/ui';
 import { useApp } from '@/components/app-context';
-import { FEATURE_META } from '@/lib/feature-flags';
 import { relTime } from '@/lib/format';
 import type { ActiveRunState } from '@/components/run-types';
 
@@ -122,7 +121,7 @@ function ActiveRunMini({ run }: { run: ActiveRunState }) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { sources, syncRuns, activeRun, readiness, features, prefs } = useApp();
+  const { sources, syncRuns, activeRun, readiness, vaultState, prefs } = useApp();
 
   const liveSources = sources.filter((s) => !s.archived);
   const needsAttention = syncRuns.filter((h) =>
@@ -130,6 +129,8 @@ export default function DashboardPage() {
   );
   const totalUploaded = syncRuns.reduce((s, h) => s + (h.uploadedCount || 0), 0);
   const connected = readiness?.genesysConfigured ?? false;
+  const persistentVault = vaultState === 'unlocked';
+  const sessionOnlyVault = vaultState === 'ephemeral';
 
   return (
     <div className="page">
@@ -163,11 +164,11 @@ export default function DashboardPage() {
           href="/diagnostics"
         />
         <StatusTile
-          icon="lock"
-          tone="success"
-          value="Unlocked"
+          icon={sessionOnlyVault ? 'alert' : 'lock'}
+          tone={persistentVault ? 'success' : 'warning'}
+          value={persistentVault ? 'Unlocked' : 'Session only'}
           label="Local data"
-          sub="Available on this device"
+          sub={persistentVault ? 'Available on this device' : 'Browser storage unavailable'}
           href="/settings"
         />
         <StatusTile
@@ -180,10 +181,10 @@ export default function DashboardPage() {
         />
         <StatusTile
           icon="database"
-          tone="info"
-          value="Local"
+          tone={persistentVault ? 'info' : 'warning'}
+          value={persistentVault ? 'Local' : 'Ephemeral'}
           label="Saved data"
-          sub="Stored on this device"
+          sub={persistentVault ? 'Stored on this device' : 'Not persisted after close'}
         />
       </div>
 
@@ -308,33 +309,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <Card pad style={{ marginBottom: 18 }}>
-        <div className="between" style={{ marginBottom: 14 }}>
-          <span className="row" style={{ gap: 8, fontWeight: 700, fontSize: 14.5 }}>
-            <Icon name="layers" size={16} style={{ color: 'var(--text-muted)' }} /> Enabled features
-          </span>
-          <Link href="/settings" className="btn btn-ghost btn-sm">
-            Manage <Icon name="chevR" size={14} />
-          </Link>
-        </div>
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          {FEATURE_META.map((f) => {
-            const on = features[f.key];
-            return (
-              <Tipless key={f.key} text={`${f.desc}${on ? '' : ' · Disabled'}`}>
-                <span
-                  className={`badge badge-${on ? (f.danger ? 'danger' : 'success') : 'neutral'}`}
-                  style={{ opacity: on ? 1 : 0.6 }}
-                >
-                  <Icon name={on ? (f.danger ? 'alert' : 'check') : 'x'} size={12} />
-                  {f.label}
-                </span>
-              </Tipless>
-            );
-          })}
-        </div>
-      </Card>
-
       <Card>
         <div className="card-head">
           <Icon name="history" size={17} style={{ color: 'var(--text-muted)' }} />
@@ -389,17 +363,5 @@ export default function DashboardPage() {
         )}
       </Card>
     </div>
-  );
-}
-
-// Local lightweight tooltip wrapper to avoid importing Tip twice with same name.
-function Tipless({ text, children }: { text: string; children: React.ReactNode }) {
-  return (
-    <span className="tip">
-      {children}
-      <span className="tip-pop" role="tooltip">
-        {text}
-      </span>
-    </span>
   );
 }

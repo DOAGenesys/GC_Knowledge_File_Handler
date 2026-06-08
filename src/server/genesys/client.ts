@@ -210,16 +210,32 @@ export async function getSourceSynchronization(
 export async function getOrgSynchronizations(
   context: GenesysClientContext = {},
 ): Promise<GenesysSynchronizationSummary[]> {
-  const result = await genesysRequest({
-    path: GENESYS_ENDPOINTS.orgSynchronizations(),
-    method: 'GET',
-    idempotency: 'idempotent',
-    query: { pageSize: 100 },
-    parse: (json) => genesysSynchronizationListSchema.parse(json ?? {}),
-    ...context,
-  });
-  const data = unwrap(result, { unknownCode: 'GENESYS_UPSTREAM_ERROR' });
-  return data.entities.map(normalizeSync);
+  const out: GenesysSynchronizationSummary[] = [];
+  let path: string | null = GENESYS_ENDPOINTS.orgSynchronizations();
+  let query: Record<string, string | number | undefined> | undefined = { pageSize: 100 };
+  for (let page = 0; page < MAX_PAGES && path; page += 1) {
+    const result: GenesysResult<ReturnType<typeof genesysSynchronizationListSchema.parse>> =
+      await genesysRequest({
+        path,
+        method: 'GET',
+        idempotency: 'idempotent',
+        query,
+        parse: (json) => genesysSynchronizationListSchema.parse(json ?? {}),
+        ...context,
+      });
+    const data = unwrap(result, { unknownCode: 'GENESYS_UPSTREAM_ERROR' });
+    for (const e of data.entities) out.push(normalizeSync(e));
+    path = nextPath(data.nextUri);
+    query = undefined;
+  }
+  if (path) {
+    logger.warn('genesys.pagination.truncated', {
+      endpoint: 'getOrgSynchronizations',
+      returned: out.length,
+      maxPages: MAX_PAGES,
+    });
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ */

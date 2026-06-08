@@ -1,6 +1,6 @@
 import { AppError } from '@/lib/errors';
 import { uuidSchema } from '@/lib/schemas';
-import { requireAuth, requireFeature, requireGenesys } from '@/server/auth/guards';
+import { requireAuth, requireFeature } from '@/server/auth/guards';
 import { getSourceSynchronization } from '@/server/genesys/client';
 import { jsonOk, route } from '@/server/http/route-helpers';
 
@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic';
 export const GET = route(async (req, ctx) => {
   await requireAuth(req);
   requireFeature('ENABLE_SOURCE_HISTORY');
-  requireGenesys();
   const { sourceId, synchronizationId } = await ctx.params;
   const sid = uuidSchema.safeParse(sourceId);
   const syncId = uuidSchema.safeParse(synchronizationId);

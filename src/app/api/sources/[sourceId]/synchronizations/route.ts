@@ -1,6 +1,6 @@
 import { AppError } from '@/lib/errors';
 import { uuidSchema } from '@/lib/schemas';
-import { requireAuth, requireFeature, requireGenesys } from '@/server/auth/guards';
+import { requireAuth, requireFeature } from '@/server/auth/guards';
 import { getSourceSynchronizations } from '@/server/genesys/client';
 import { jsonOk, route } from '@/server/http/route-helpers';
 
@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic';
 export const GET = route(async (req, ctx) => {
   await requireAuth(req);
   requireFeature('ENABLE_SOURCE_HISTORY');
-  requireGenesys();
   const { sourceId } = await ctx.params;
   const parsed = uuidSchema.safeParse(sourceId);
   if (!parsed.success) throw new AppError('APP_BAD_REQUEST', { detail: 'invalid sourceId' });

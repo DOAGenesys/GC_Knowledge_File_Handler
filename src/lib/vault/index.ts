@@ -5,12 +5,12 @@
  * All persistence flows through here, so the database-free / no-secrets
  * invariants live in one place.
  */
-import { uuid } from '../ids';
 import type { VaultData } from '../types';
 import {
   CorruptVaultError,
   deriveKey,
   deriveKeyForEnvelope,
+  fromBase64,
   newSalt,
   openEnvelope,
   sealEnvelope,
@@ -28,16 +28,6 @@ export {
   isStorageAvailable,
 } from './storage';
 export type { VaultEnvelope } from './crypto';
-
-function fromBase64(b64: string): Uint8Array {
-  if (typeof atob === 'function') {
-    const bin = atob(b64);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-  return new Uint8Array(Buffer.from(b64, 'base64'));
-}
 
 /**
  * An unlocked vault session. The CryptoKey and decrypted data live only on this
@@ -74,10 +64,6 @@ export class VaultSession {
     const session = new VaultSession(key, salt, envelope.createdAt, data);
     if (migrated) await session.persist();
     return session;
-  }
-
-  isUnlocked(): boolean {
-    return true;
   }
 
   /** Read-only snapshot of the decrypted data. */
@@ -156,9 +142,4 @@ export class VaultSession {
 /** Permanently clear all local data (after the user confirms). */
 export function clearLocalData(): void {
   clearAll();
-}
-
-/** Generate a new install id (used when seeding ephemeral state). */
-export function newInstallId(): string {
-  return uuid();
 }

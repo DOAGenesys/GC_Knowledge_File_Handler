@@ -95,15 +95,6 @@ describe('engine — reselect & timeout', () => {
     expect(state.files.b!.status).toBe('needs_reselect');
     expect(evaluate(state)).toBe('NeedsUserAction');
   });
-
-  it('re-queues a file after reselect so it can resume', () => {
-    const state = createEngine(['b']);
-    selectTicketsToIssue(state);
-    applyEvent(state, { type: 'timeout', fileKey: 'b' });
-    applyEvent(state, { type: 'reselectDone', fileKey: 'b' });
-    expect(state.files.b!.status).toBe('queued');
-    expect(selectTicketsToIssue(state)).toEqual(['b']);
-  });
 });
 
 describe('engine — robustness', () => {

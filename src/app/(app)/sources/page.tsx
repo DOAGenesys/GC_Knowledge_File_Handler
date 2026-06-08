@@ -115,8 +115,6 @@ function resetSourceRecord(current: SourceRecord, replacement: ValidatedSource):
     lastValidatedAt: now,
     lastRemoteSyncAt: parseDate(replacement.dateLastSync),
     lastUsedAt: null,
-    lastSyncRunId: null,
-    lastSync: null,
     localOnly: false,
   };
 }
@@ -263,7 +261,8 @@ export default function SourcesPage() {
   const tabs: { value: 'registry' | 'discovery'; label: string }[] = [
     { value: 'registry', label: 'Your sources' },
   ];
-  if (features.ENABLE_SOURCE_DISCOVERY) tabs.push({ value: 'discovery', label: 'Discover sources' });
+  if (features.ENABLE_SOURCE_DISCOVERY)
+    tabs.push({ value: 'discovery', label: 'Discover sources' });
 
   return (
     <div className="page">
@@ -519,17 +518,6 @@ function SourceCard({
                 </Callout>
               </div>
             )}
-            {s.lastSync && (
-              <div className="row" style={{ gap: 8, marginTop: 12 }}>
-                <span className="faint" style={{ fontSize: 12 }}>
-                  Last sync:
-                </span>
-                <StatusBadge status={s.lastSync.status} />
-                <span className="faint" style={{ fontSize: 12 }}>
-                  {s.lastSync.files} files · {relTime(s.lastSync.when)}
-                </span>
-              </div>
-            )}
           </div>
         </div>
         <div className="row" style={{ gap: 6, flexShrink: 0 }}>
@@ -643,12 +631,14 @@ function DiscoveryPanel({
         lastValidatedAt: Date.now(),
         lastRemoteSyncAt: parseDate(r.dateLastSync),
         lastUsedAt: null,
-        lastSyncRunId: null,
         archived: false,
-        lastSync: null,
       };
       await onImport(rec);
-      toast({ tone: 'success', title: 'Source added', body: `${r.name} was added to your sources.` });
+      toast({
+        tone: 'success',
+        title: 'Source added',
+        body: `${r.name} was added to your sources.`,
+      });
     } catch (err) {
       const e = err as ApiError;
       toast({ tone: 'danger', title: 'Import failed', body: e.message });
@@ -1118,7 +1108,8 @@ function SourceDetailDrawer({
           ) : (
             <div style={{ marginTop: 20 }}>
               <Callout tone="info" icon="info">
-                Source history is disabled. Enable it in Settings to read recent Genesys activity.
+                Source history is disabled for this deployment. Set{' '}
+                <span className="mono">ENABLE_SOURCE_HISTORY</span> to read recent Genesys activity.
               </Callout>
             </div>
           )}
@@ -1325,9 +1316,7 @@ function CreateSourceModal({
         lastValidatedAt: Date.now(),
         lastRemoteSyncAt: parseDate(source.dateLastSync),
         lastUsedAt: null,
-        lastSyncRunId: null,
         archived: false,
-        lastSync: null,
       };
       await onCreated(rec);
     } catch (err2) {
@@ -1360,11 +1349,7 @@ function CreateSourceModal({
           </div>
         </div>
         <div style={{ marginTop: 20 }}>
-          <Field
-            label="Source name"
-            error={err}
-            hint="2-200 characters"
-          >
+          <Field label="Source name" error={err} hint="2-200 characters">
             <input
               className={`input ${err ? 'input-err' : ''}`}
               value={name}
@@ -1512,9 +1497,7 @@ function ExistingSourceModal({
         lastValidatedAt: Date.now(),
         lastRemoteSyncAt: parseDate(remote.dateLastSync),
         lastUsedAt: null,
-        lastSyncRunId: null,
         archived: false,
-        lastSync: null,
       };
       await onAdd(rec);
     } finally {
@@ -1925,9 +1908,8 @@ function DeleteSourceModal({
         </div>
         <div style={{ marginTop: 18 }}>
           <Callout tone="danger" icon="alertCircle" title="This is unrecoverable">
-            Deleting a source removes it and its ingested content in Genesys. This
-            cannot be undone. The local reference is removed only after remote deletion is
-            confirmed.
+            Deleting a source removes it and its ingested content in Genesys. This cannot be undone.
+            The local reference is removed only after remote deletion is confirmed.
           </Callout>
           {blocked ? (
             <div style={{ marginTop: 14 }}>

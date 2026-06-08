@@ -13,7 +13,8 @@
  * reselect and resume the same attempt. The controller never fabricates success
  * and never treats an unconfirmed completion as a successful run.
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { CSRF_COOKIE, CSRF_HEADER } from '@/server/auth/cookies';
 import { api } from '@/lib/api-client';
 import { useApp } from './app-context';
@@ -43,13 +44,6 @@ function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.split('; ').find((c) => c.startsWith(`${name}=`));
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
-}
-
-function base64Json(value: unknown): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin);
 }
 
 function uploadViaXhr(
@@ -89,12 +83,11 @@ function uploadViaProxy(
     xhr.open('PUT', '/api/sync/proxy-upload', true);
     const csrf = readCookie(CSRF_COOKIE);
     if (csrf) xhr.setRequestHeader(CSRF_HEADER, csrf);
-    if (ticket.proxyToken) {
-      xhr.setRequestHeader('x-gkfsm-proxy-token', ticket.proxyToken);
-    } else {
-      xhr.setRequestHeader('x-gkfsm-upload-url', ticket.url);
-      xhr.setRequestHeader('x-gkfsm-upload-headers', base64Json(ticket.headers));
+    if (!ticket.proxyToken) {
+      resolve('Failed');
+      return;
     }
+    xhr.setRequestHeader('x-gkfsm-proxy-token', ticket.proxyToken);
     if (file.type) xhr.setRequestHeader('x-gkfsm-content-type', file.type);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
@@ -111,7 +104,9 @@ export interface RunController {
   resumePending: (localFileKey: string) => void;
 }
 
-export function useRunController(): RunController {
+const RunControllerContext = createContext<RunController | null>(null);
+
+function useRunControllerInternal(): RunController {
   const { activeRun, setActiveRun, updateVault, toast, prefs, readiness } = useApp();
   const filesRef = useRef<ActiveRunFile[]>([]);
   filesRef.current = activeRun?.files ?? [];
@@ -406,7 +401,6 @@ export function useRunController(): RunController {
         fileCount: r.files.length,
         uploadedCount: uploaded,
         failedCount: r.files.filter((f) => f.status === 'UploadFailedRecoverable').length,
-        skippedCount: 0,
         needsUserActionCount: r.files.filter(
           (f) => f.status === 'UploadResultUnknown' || f.status === 'NeedsReselect',
         ).length,
@@ -429,4 +423,15 @@ export function useRunController(): RunController {
   }, [activeRun, updateVault, toast]);
 
   return { resumePending };
+}
+
+export function RunControllerProvider({ children }: { children: ReactNode }) {
+  const controller = useRunControllerInternal();
+  return createElement(RunControllerContext.Provider, { value: controller }, children);
+}
+
+export function useRunController(): RunController {
+  const controller = useContext(RunControllerContext);
+  if (!controller) throw new Error('useRunController must be used within <RunControllerProvider>');
+  return controller;
 }

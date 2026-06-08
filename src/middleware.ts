@@ -5,9 +5,9 @@ import { verifySession } from '@/server/auth/session-core';
 
 /**
  * Edge middleware: enforces (1) a strict, nonce-based Content-Security-Policy on
- * every document/API response and (2) the single-admin access gate — NO page or
- * API route is reachable without a valid session, except the login route, the
- * auth endpoints, and the unauthenticated liveness probe.
+ * every document/API response and (2) the signed app-session access gate — NO
+ * page or API route is reachable without a valid session, except the login
+ * route, auth endpoints, and the unauthenticated liveness probe.
  *
  * Kept dependency-light and `server-only`-free so it runs in the edge runtime;
  * reads the few values it needs directly from the environment.
@@ -109,7 +109,5 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 export const config = {
   // Run on everything EXCEPT Next static assets, public images, and the Workflow
   // SDK's internal durable-execution paths (which must never be intercepted).
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|images/|.well-known/workflow/).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|images/|.well-known/workflow/).*)'],
 };

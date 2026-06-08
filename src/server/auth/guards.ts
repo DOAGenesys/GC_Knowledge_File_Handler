@@ -14,7 +14,7 @@ import {
 } from './session-core';
 
 /**
- * Route-handler authentication / CSRF / feature guards (TODO Block 3). Every
+ * Route-handler authentication / CSRF / feature guards. Every
  * mutating and sensitive route calls these. The signed app session is created
  * only after Genesys Cloud completes the Authorization Code + PKCE callback.
  */
@@ -85,11 +85,6 @@ export function requireFeature(key: FeatureKey): void {
   if (!cfg.features[key]) {
     throw new AppError('APP_FORBIDDEN_FEATURE_DISABLED', { detail: `${key} disabled` });
   }
-}
-
-/** Ensure Genesys is configured before a route that needs it; else fail closed. */
-export function requireGenesys(): void {
-  if (!getServerConfig().auth.configured) throw new AppError('APP_UNAUTHENTICATED');
 }
 
 /** Map an unknown thrown value to an AppError for a JSON error response. */

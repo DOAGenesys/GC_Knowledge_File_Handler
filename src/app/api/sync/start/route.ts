@@ -3,7 +3,7 @@ import { start } from 'workflow/api';
 import { startSyncInputSchema } from '@/lib/schemas';
 import { getServerConfig } from '@/server/config';
 import { AppError } from '@/lib/errors';
-import { requireAuth, requireCsrf, requireFeature, requireGenesys } from '@/server/auth/guards';
+import { requireAuth, requireCsrf, requireFeature } from '@/server/auth/guards';
 import { getEncryptedGenesysAuthForWorkflow } from '@/server/genesys/oauth';
 import { jsonOk, readJsonBody, route } from '@/server/http/route-helpers';
 import { syncWorkflow } from '@/workflows/sync-workflow';
@@ -15,7 +15,6 @@ export const dynamic = 'force-dynamic';
 export const POST = route(async (req: NextRequest) => {
   await requireAuth(req);
   requireCsrf(req);
-  requireGenesys();
 
   const input = await readJsonBody(req, startSyncInputSchema, { maxBytes: 2_000_000 });
   const genesysAuth = await getEncryptedGenesysAuthForWorkflow();

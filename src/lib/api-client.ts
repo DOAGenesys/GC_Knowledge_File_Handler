@@ -7,8 +7,8 @@
  *    non-HttpOnly CSRF cookie),
  *  - typed error surfacing (server error envelope → ApiError).
  *
- * It NEVER stores responses; upload tickets received via the status stream are
- * held in component memory only.
+ * It NEVER stores responses; upload tickets fetched on demand are held in
+ * component memory only.
  */
 import { CSRF_COOKIE, CSRF_HEADER } from '@/server/auth/cookies';
 import type { ErrorCode } from './errors';

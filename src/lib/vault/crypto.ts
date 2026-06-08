@@ -41,7 +41,7 @@ function toBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
 }
 
-function fromBase64(b64: string): Uint8Array {
+export function fromBase64(b64: string): Uint8Array {
   if (typeof atob === 'function') {
     const bin = atob(b64);
     const out = new Uint8Array(bin.length);

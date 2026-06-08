@@ -11,7 +11,6 @@ export const FEATURE_KEYS = [
   'ENABLE_SOURCE_HISTORY',
   'ENABLE_ORG_SYNC_DIAGNOSTICS',
   'ENABLE_FULL_SYNC',
-  'ENABLE_PROXY_UPLOAD',
   'ENABLE_SOURCE_UPDATE',
   'ENABLE_SOURCE_RESET',
   'ENABLE_SOURCE_DELETE',
@@ -33,7 +32,6 @@ export const FEATURE_DEFAULTS: FeatureFlags = {
   ENABLE_SOURCE_HISTORY: true,
   ENABLE_ORG_SYNC_DIAGNOSTICS: false,
   ENABLE_FULL_SYNC: false,
-  ENABLE_PROXY_UPLOAD: false,
   ENABLE_SOURCE_UPDATE: false,
   ENABLE_SOURCE_RESET: true,
   ENABLE_SOURCE_DELETE: false,
@@ -84,12 +82,6 @@ export const FEATURE_META: readonly FeatureMeta[] = [
     label: 'Full sync',
     desc: 'Allow Full replacement synchronizations',
     endpoint: 'type: Full',
-  },
-  {
-    key: 'ENABLE_PROXY_UPLOAD',
-    label: 'Proxy upload fallback',
-    desc: 'Stream bytes via server when CORS blocks direct upload',
-    endpoint: 'streaming proxy',
   },
   {
     key: 'ENABLE_SOURCE_UPDATE',

@@ -4,8 +4,8 @@
  * tested (Block 7).
  *
  * Invariants it guarantees (PRODUCT.md §5.1, §14, §15):
- *  - The run reaches `Completed` ONLY when every file is `Uploaded` (or
- *    deliberately `Skipped`). Any pending/failed/ambiguous file → `NeedsUserAction`.
+ *  - The run reaches `Completed` ONLY when every file is `Uploaded`.
+ *    Any pending/failed/ambiguous file → `NeedsUserAction`.
  *  - A cancel signal always wins → `Cancelled`.
  *  - Ambiguous upload results (`CorsUnknown`) are never treated as success.
  *  - Bounded-concurrency ticket issuance with per-file attempt limits.
@@ -18,10 +18,9 @@ export type FileLifecycle =
   | 'failed_recoverable'
   | 'result_unknown'
   | 'needs_reselect'
-  | 'skipped'
   | 'cancelled';
 
-export type RunOutcome = 'Completed' | 'Cancelled' | 'NeedsUserAction' | 'FailedFatal';
+export type RunOutcome = 'Completed' | 'Cancelled' | 'NeedsUserAction';
 
 export type UploadResult = 'Uploaded' | 'Failed' | 'CorsUnknown';
 
@@ -35,7 +34,7 @@ export interface EngineState {
 }
 
 export interface EngineEvent {
-  type: 'uploadResult' | 'cancel' | 'timeout' | 'reselectDone';
+  type: 'uploadResult' | 'cancel' | 'timeout';
   fileKey?: string;
   result?: UploadResult;
 }
@@ -115,11 +114,6 @@ export function applyEvent(state: EngineState, event: EngineEvent): void {
     case 'timeout':
       if (event.fileKey) applyTimeout(state, event.fileKey);
       break;
-    case 'reselectDone':
-      if (event.fileKey && state.files[event.fileKey]?.status === 'needs_reselect') {
-        state.files[event.fileKey]!.status = 'queued';
-      }
-      break;
     case 'cancel':
       applyCancel(state);
       break;
@@ -128,7 +122,7 @@ export function applyEvent(state: EngineState, event: EngineEvent): void {
 
 /** True iff every file reached a successful terminal state. */
 export function allSucceeded(state: EngineState): boolean {
-  return Object.values(state.files).every((f) => f.status === 'uploaded' || f.status === 'skipped');
+  return Object.values(state.files).every((f) => f.status === 'uploaded');
 }
 
 /** True iff some file could still make automatic progress (queued or ticketed). */
@@ -173,7 +167,7 @@ export function counts(state: EngineState): EngineCounts {
   const values = Object.values(state.files);
   return {
     total: values.length,
-    uploaded: values.filter((f) => f.status === 'uploaded' || f.status === 'skipped').length,
+    uploaded: values.filter((f) => f.status === 'uploaded').length,
     failed: values.filter((f) => f.status === 'failed_recoverable').length,
     unknown: values.filter((f) => f.status === 'result_unknown').length,
     needsReselect: values.filter((f) => f.status === 'needs_reselect').length,

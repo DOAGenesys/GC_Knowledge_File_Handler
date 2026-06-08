@@ -29,7 +29,6 @@ export type RunState =
   | 'BrowserUploading'
   | 'FileUploaded'
   | 'FileFailedRecoverable'
-  | 'FileFailedFatal'
   | 'NeedsUserAction'
   | 'RemoteStatusRefreshing'
   | 'CompletingSynchronization'
@@ -78,14 +77,12 @@ export type FileState =
   | 'Uploading'
   | 'Uploaded'
   | 'UploadFailedRecoverable'
-  | 'UploadFailedFatal'
   | 'NeedsReselect'
-  | 'Skipped'
   | 'Cancelled'
   | 'UploadResultUnknown';
 
 /** File states that count as "done and successful" for completion gating. */
-export const SUCCESS_FILE_STATES = ['Uploaded', 'Skipped'] as const satisfies readonly FileState[];
+export const SUCCESS_FILE_STATES = ['Uploaded'] as const satisfies readonly FileState[];
 
 /** Source record persisted in the encrypted vault (PRODUCT.md §11.2). */
 export interface SourceRecord {
@@ -101,12 +98,9 @@ export interface SourceRecord {
   lastValidatedAt: number | null;
   lastRemoteSyncAt: number | null;
   lastUsedAt: number | null;
-  lastSyncRunId: string | null;
   archived: boolean;
   /** True when the source exists only in this vault (cannot be rediscovered). */
   localOnly?: boolean;
-  /** Last-known non-secret sync summary for quick display. */
-  lastSync?: { status: RunState; files: number; when: number } | null;
   notes?: string;
 }
 
@@ -148,7 +142,6 @@ export interface SyncRunRecord {
   fileCount: number;
   uploadedCount: number;
   failedCount: number;
-  skippedCount: number;
   needsUserActionCount: number;
   errorSummary: string | null;
   files: FileRecord[];
@@ -164,7 +157,6 @@ export interface Preferences {
   defaultSyncType: SyncType;
   sizeWarnMb: number;
   uploadMode: 'direct' | 'proxy';
-  autoRename: boolean;
   redactNames: boolean;
   theme: 'light' | 'dark';
 }
@@ -173,7 +165,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   defaultSyncType: 'Incremental',
   sizeWarnMb: 50,
   uploadMode: 'direct',
-  autoRename: true,
   redactNames: false,
   theme: 'light',
 };

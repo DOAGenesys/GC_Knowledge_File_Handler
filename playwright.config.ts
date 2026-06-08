@@ -3,11 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * End-to-end tests.
  *
- * These exercise the real app in a browser. The full sandbox-sync E2E flows
- * (create source, upload, complete) require a configured Genesys sandbox OAuth
- * client and are gated behind the E2E_GENESYS_SANDBOX env flag — see
- * docs/testing.md. The UI/navigation/security E2E flows run against the local
- * dev server without external dependencies.
+ * These exercise browser-level security and public route behavior. Full
+ * Genesys sandbox sync coverage is intentionally not implemented in this repo
+ * because it needs live tenant credentials and deployment-specific setup.
  */
 export default defineConfig({
   testDir: './e2e',

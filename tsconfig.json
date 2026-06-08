@@ -27,5 +27,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "vitest.setup.ts"],
-  "exclude": ["node_modules", "design-intake", "e2e"]
+  "exclude": ["node_modules", "e2e"]
 }

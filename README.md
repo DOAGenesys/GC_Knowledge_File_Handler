@@ -7,9 +7,8 @@ browser, and runs a **durable workflow** that uploads each file directly to a
 Genesys pre-signed URL and marks the synchronization `Completed` **only when
 every file has definitely uploaded**.
 
-Built from [`PRODUCT.md`](./PRODUCT.md) (spec) and [`TODO.md`](./TODO.md)
-(checklist), with the UI ported from an approved Claude Design prototype
-(see [`docs/design-intake.md`](./docs/design-intake.md)).
+The current product contract lives in [`PRODUCT.md`](./PRODUCT.md); this repo no
+longer carries prototype/mock artifacts or stale implementation checklists.
 
 - **Stack:** Next.js 15 (App Router) · React 19 · TypeScript (strict) · Vercel
   Workflow SDK · WebCrypto · zod. No Tailwind — the design system is a
@@ -81,8 +80,8 @@ admin login.
 | `npm run lint:strict` | ESLint with `--max-warnings=0` (incl. db-free import guard) |
 | `npm run test` | Vitest unit + integration suite |
 | `npm run test:e2e` | Playwright E2E (see `docs/testing.md`) |
-| `npm run security:scope` | Endpoint-scope guardrail test (Block 6) |
-| `npm run check` | format check + lint + typecheck + test (CI gate) |
+| `npm run security:scope` | Endpoint-scope guardrail test |
+| `npm run check` | format check + lint + typecheck + test |
 
 ## Access model
 
@@ -103,7 +102,7 @@ defense-in-depth. See [`docs/security-model.md`](./docs/security-model.md).
 
 ```
 Browser (encrypted vault, file hashing, direct upload)
-  │  metadata-only manifest (no bytes)              ▲ SSE status stream (tickets in-memory)
+  │  metadata-only manifest (no bytes)              ▲ SSE status stream (ticketReady only)
   ▼                                                  │
 Next.js route handlers  ──►  Vercel Workflow (durable orchestration)
   │  (auth · CSRF · feature flags · redaction)         │  atomic steps, hooks
@@ -131,7 +130,7 @@ Deep dives: [`docs/architecture.md`](./docs/architecture.md),
 ## Security properties (verified)
 
 - No app database / object storage (enforced by an ESLint import guard +
-  architecture test). Only the encrypted vault, Vercel Workflow state, and
+  endpoint-scope guardrail). Only the encrypted vault, Vercel Workflow state, and
   Genesys hold data.
 - No secrets / tokens / pre-signed URLs / signed headers / file bytes are ever
   persisted (localStorage, logs, workflow payloads, or support bundles).
@@ -178,8 +177,9 @@ Register `https://<your-vercel-domain>/api/auth/callback` on your Genesys PKCE
 OAuth client before going live.
 
 For direct browser uploads, add your region's upload host to
-`GENESYS_UPLOAD_CONNECT_SRC` (CSP `connect-src`) or enable the streaming proxy
-fallback. See [`docs/deployment.md`](./docs/deployment.md) and
+`GENESYS_UPLOAD_CONNECT_SRC` (CSP `connect-src`). When direct uploads are not
+allowlisted, the browser uses the same-origin signed streaming proxy. See
+[`docs/deployment.md`](./docs/deployment.md) and
 [`docs/runbooks.md`](./docs/runbooks.md).
 
 ## Known limitations (by design)

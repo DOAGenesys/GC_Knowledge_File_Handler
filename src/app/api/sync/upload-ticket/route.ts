@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { AppError, isAppError } from '@/lib/errors';
 import { uploadTicketRequestSchema } from '@/lib/schemas';
 import { validateFile } from '@/lib/validation';
-import { requireAuth, requireCsrf, requireGenesys } from '@/server/auth/guards';
+import { requireAuth, requireCsrf } from '@/server/auth/guards';
 import { requestUploadUrl } from '@/server/genesys/client';
 import { signCallbackToken } from '@/server/workflow/callback-token';
 import { signProxyUploadToken } from '@/server/workflow/proxy-upload-token';
@@ -23,7 +23,6 @@ export const dynamic = 'force-dynamic';
 export const POST = route(async (req: NextRequest) => {
   await requireAuth(req);
   requireCsrf(req);
-  requireGenesys();
 
   const body = await readJsonBody(req, uploadTicketRequestSchema, { maxBytes: 16_384 });
 

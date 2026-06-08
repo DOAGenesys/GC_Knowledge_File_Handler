@@ -47,7 +47,6 @@ export interface Toast {
 }
 
 interface AppContextValue {
-  ready: boolean;
   username: string | null;
   readiness: ReadinessLike | null;
   features: FeatureFlags;
@@ -55,7 +54,6 @@ interface AppContextValue {
   setTheme: (t: 'light' | 'dark') => void;
 
   vaultState: VaultState;
-  vaultData: VaultData | null;
   sources: SourceRecord[];
   syncRuns: SyncRunRecord[];
   prefs: Preferences;
@@ -283,14 +281,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
-      ready: vaultState !== 'loading',
       username,
       readiness,
       features,
       theme,
       setTheme,
       vaultState,
-      vaultData,
       sources,
       syncRuns,
       prefs,
@@ -316,7 +312,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       features,
       theme,
       setTheme,
-      vaultData,
       sources,
       syncRuns,
       prefs,

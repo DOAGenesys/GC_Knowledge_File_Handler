@@ -47,7 +47,6 @@ describe('VaultSession', () => {
         lastValidatedAt: null,
         lastRemoteSyncAt: null,
         lastUsedAt: null,
-        lastSyncRunId: null,
         archived: false,
       });
     });
@@ -99,7 +98,7 @@ describe('VaultSession', () => {
     await session.changePassphrase('new-pw-stronger');
     await expect(VaultSession.unlock('old-pw')).rejects.toBeInstanceOf(WrongPassphraseError);
     const reopened = await VaultSession.unlock('new-pw-stronger');
-    expect(reopened.isUnlocked()).toBe(true);
+    expect(reopened.snapshot().schemaVersion).toBe(2);
   });
 
   it('uses a unique IV per encryption', async () => {
@@ -143,7 +142,6 @@ function makeSource() {
     lastValidatedAt: null,
     lastRemoteSyncAt: null,
     lastUsedAt: null,
-    lastSyncRunId: null,
     archived: false,
   };
 }

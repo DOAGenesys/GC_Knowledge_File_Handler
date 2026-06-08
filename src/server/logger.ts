@@ -5,7 +5,7 @@ import { redact } from './redact';
 /**
  * Central structured logger. Every field is passed through redaction before it
  * is emitted, so tokens, upload URLs, and signed headers cannot reach the logs
- * even if a caller forgets to strip them (TODO Block 3, §17).
+ * even if a caller forgets to strip them (PRODUCT.md §17).
  */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogFields = Record<string, unknown>;
