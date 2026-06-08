@@ -107,7 +107,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Run on everything EXCEPT Next static assets and the Workflow SDK's internal
-  // durable-execution paths (which must never be intercepted).
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.well-known/workflow/).*)'],
+  // Run on everything EXCEPT Next static assets, public images, and the Workflow
+  // SDK's internal durable-execution paths (which must never be intercepted).
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|images/|.well-known/workflow/).*)',
+  ],
 };

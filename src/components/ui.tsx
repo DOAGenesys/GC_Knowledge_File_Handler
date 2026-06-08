@@ -265,9 +265,10 @@ export function Field({
   error?: ReactNode;
   children: ReactNode;
 }) {
+  const LabelTag = typeof label === 'string' ? 'label' : 'div';
   return (
     <div className="field">
-      {label ? <label className="label">{label}</label> : null}
+      {label ? <LabelTag className="label">{label}</LabelTag> : null}
       {children}
       {error ? (
         <span className="hint" style={{ color: 'var(--danger)' }} role="alert">
@@ -496,6 +497,26 @@ export function Tip({ text, children }: { text: string; children: ReactNode }) {
       {children}
       <span className="tip-pop" role="tooltip">
         {text}
+      </span>
+    </span>
+  );
+}
+
+/** Hover/focus popover for field labels — supports rich content such as copy actions. */
+export function HelpTip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="tip tip-rich">
+      <button type="button" className="help-tip-trigger" aria-label={label}>
+        <Icon name="help" size={14} />
+      </button>
+      <span className="tip-pop tip-pop-rich" role="tooltip">
+        {children}
       </span>
     </span>
   );

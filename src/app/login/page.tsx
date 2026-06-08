@@ -3,11 +3,42 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/icon';
-import { Card, Field, Spinner } from '@/components/ui';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { Card, Field, HelpTip, Spinner } from '@/components/ui';
+import { GENESYS_LOGO_SRC, STORAGE_KEYS } from '@/lib/constants';
 
 const REGION_STORAGE_KEY = 'gkfsm_genesys_region';
 const CLIENT_ID_STORAGE_KEY = 'gkfsm_genesys_client_id';
+
+function CallbackUrlCopy({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard?.writeText(url);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button type="button" className="tip-copy-btn" onClick={copy} aria-label="Copy redirect URI">
+      <span className="tip-copy-url">{url}</span>
+      <Icon name={copied ? 'check' : 'copy'} size={13} />
+    </button>
+  );
+}
+
+function ClientIdHelp({ callbackUrl }: { callbackUrl: string }) {
+  return (
+    <HelpTip label="Client ID help">
+      <p style={{ margin: 0 }}>
+        Create an OAuth Client in your GC org, &ldquo;Code Authorization / PKCE&rdquo; grant type
+        with at least the &ldquo;Knowledge&rdquo; scope and the redirect URI below set in{' '}
+        <strong>Authorized redirect URIs</strong>. Keep the Client Id (no need for the Client
+        secret) and paste it here.
+      </p>
+      {callbackUrl ? <CallbackUrlCopy url={callbackUrl} /> : null}
+    </HelpTip>
+  );
+}
 
 function errorMessage(code: string | null): string {
   switch (code) {
@@ -25,10 +56,13 @@ function errorMessage(code: string | null): string {
 export default function LoginPage() {
   const [region, setRegion] = useState('');
   const [clientId, setClientId] = useState('');
+  const [callbackUrl, setCallbackUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
+    setCallbackUrl(`${window.location.origin}/api/auth/callback`);
+
     try {
       setRegion(localStorage.getItem(REGION_STORAGE_KEY) ?? '');
       setClientId(localStorage.getItem(CLIENT_ID_STORAGE_KEY) ?? '');
@@ -93,7 +127,7 @@ export default function LoginPage() {
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <div className="genesys-brand-mark" aria-label="Genesys">
               <Image
-                src="/images/Genesys_logo.png"
+                src={GENESYS_LOGO_SRC}
                 alt="Genesys"
                 width={225}
                 height={58}
@@ -127,7 +161,15 @@ export default function LoginPage() {
                 onKeyDown={(e) => e.key === 'Enter' && submit()}
               />
             </Field>
-            <Field label="Client ID" error={err}>
+            <Field
+              label={
+                <span className="label-row">
+                  Client ID
+                  <ClientIdHelp callbackUrl={callbackUrl} />
+                </span>
+              }
+              error={err}
+            >
               <input
                 className={`input ${err ? 'input-err' : ''}`}
                 value={clientId}
