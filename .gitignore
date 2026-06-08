@@ -1,7 +1,15 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
 # dependencies
 /node_modules
 /.pnp
 .pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
 # next.js
 /.next/
@@ -10,17 +18,27 @@ next-env.d.ts
 
 # production
 /build
+/dist
 
 # testing
 /coverage
-/test-results
-/playwright-report
+*.lcov
+/test-results/
+/playwright-report/
+/blob-report/
 /playwright/.cache
+
+# workflow devkit (local runtime + SWC plugin cache)
+/.swc/
+/.workflow-data/
 
 # misc
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 *.pem
-.idea
+.idea/
 .vscode/*
 !.vscode/extensions.json
 
@@ -32,10 +50,8 @@ yarn-error.log*
 
 # env files — NEVER commit real secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
 # vercel
 .vercel
@@ -43,10 +59,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# eslint
+.eslintcache
+
 # local vault exports (never commit)
 *.enc
 *.gkfsm-vault
-
-# markdown (keep README.md tracked)
-*.md
-!README.md
