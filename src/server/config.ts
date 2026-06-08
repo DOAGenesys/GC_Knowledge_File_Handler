@@ -24,7 +24,11 @@ function int(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-/** Normalize a Genesys region/domain/API URL to an API host such as api.mypurecloud.com. */
+/**
+ * Normalize a Genesys region input (e.g. mypurecloud.de) to an API host
+ * (api.mypurecloud.de). Accepts bare region domains, api./login. prefixes, or
+ * full https URLs — all are reduced to the region domain before api. is added.
+ */
 export function normalizeRegionHost(raw: string | undefined): string | null {
   if (!raw) return null;
   let host: string;
@@ -75,7 +79,7 @@ export function getServerConfig(): ServerConfig {
   if (cached) return cached;
 
   const clientId = process.env.GENESYS_CLIENT_ID?.trim() || null;
-  const regionHost = normalizeRegionHost(process.env.GENESYS_REGION_API_HOST);
+  const regionHost = normalizeRegionHost(process.env.GENESYS_REGION);
 
   const sessionSecret = process.env.APP_SESSION_SECRET || null;
 

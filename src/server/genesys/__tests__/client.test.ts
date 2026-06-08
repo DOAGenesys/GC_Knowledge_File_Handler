@@ -4,7 +4,7 @@ import type { GenesysAuthContext } from '../oauth';
 // Configure Genesys env BEFORE importing modules that memoize config.
 beforeAll(() => {
   process.env.GENESYS_CLIENT_ID = 'cid';
-  process.env.GENESYS_REGION_API_HOST = 'api.mypurecloud.com';
+  process.env.GENESYS_REGION = 'mypurecloud.com';
 });
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
