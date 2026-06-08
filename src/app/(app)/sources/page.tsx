@@ -1703,7 +1703,7 @@ function ResetSourceModal({
     setResetting(true);
     setErr('');
     try {
-      const result = await api.post<{ source: ValidatedSource; renamed: boolean }>(
+      const result = await api.post<{ source: ValidatedSource }>(
         `/api/sources/${encodeURIComponent(source.sourceId)}/reset`,
         {
           sourceId: source.sourceId,
@@ -1712,13 +1712,6 @@ function ResetSourceModal({
         },
       );
       await onReset(resetSourceRecord(source, result.source));
-      if (!result.renamed) {
-        toast({
-          tone: 'warning',
-          title: 'Reset completed with a temporary name',
-          body: 'The source was reset, but Genesys did not accept the final rename. Rename it from the details view when ready.',
-        });
-      }
     } catch (err2) {
       const e = err2 as ApiError;
       toast({ tone: 'danger', title: 'Reset failed', body: e.message });

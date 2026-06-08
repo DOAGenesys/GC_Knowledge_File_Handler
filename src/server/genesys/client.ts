@@ -261,51 +261,41 @@ export async function createSource(
   );
 }
 
-const MAX_SOURCE_NAME_LENGTH = 200;
-
-function resetStagingName(finalName: string): string {
-  const suffix = ` - reset ${Date.now().toString(36)}`;
-  const base = finalName.trim();
-  const maxBaseLength = Math.max(1, MAX_SOURCE_NAME_LENGTH - suffix.length);
-  return `${base.slice(0, maxBaseLength).trimEnd()}${suffix}`;
-}
-
 export interface ResetSourceResult {
   source: GenesysSourceDetail;
-  renamed: boolean;
 }
 
+/**
+ * Reset a source: delete the existing source, then create an empty replacement
+ * with the requested name.
+ *
+ * The delete MUST happen before the create. Genesys orgs cap the number of
+ * Knowledge sources, so creating first would be rejected at capacity. Deleting
+ * first frees the slot, and because the original is gone there is no name
+ * collision — the replacement can use the final name directly (no staging
+ * name / rename step).
+ *
+ * Reset intentionally discards the current source and its content. The delete
+ * is only short-circuited when the source is already gone (SOURCE_NOT_FOUND),
+ * which makes a retry after a failed create idempotent instead of dead-ending
+ * on a 404. An ambiguous delete (SOURCE_DELETE_UNKNOWN) still throws, so we
+ * never create a replacement while the original's fate is unconfirmed.
+ */
 export async function resetSource(
   sourceId: string,
   replacementName: string,
   context: GenesysClientContext = {},
 ): Promise<ResetSourceResult> {
   const finalName = replacementName.trim();
-  const replacement = await createSource(resetStagingName(finalName), context);
 
   try {
     await deleteSource(sourceId, context);
   } catch (err) {
-    try {
-      await deleteSource(replacement.id, context);
-    } catch (cleanupErr) {
-      logger.warn('genesys.source.reset.cleanup_failed', {
-        replacementSourceId: replacement.id,
-        cause: (cleanupErr as Error)?.name,
-      });
-    }
-    throw err;
+    if (!(err instanceof AppError) || err.code !== 'SOURCE_NOT_FOUND') throw err;
+    logger.info('genesys.source.reset.already_deleted', { outcome: 'proceeding_to_create' });
   }
 
-  try {
-    return { source: await updateSource(replacement.id, finalName, context), renamed: true };
-  } catch (err) {
-    logger.warn('genesys.source.reset.rename_failed', {
-      replacementSourceId: replacement.id,
-      cause: (err as Error)?.name,
-    });
-    return { source: replacement, renamed: false };
-  }
+  return { source: await createSource(finalName, context) };
 }
 
 export async function startSynchronization(

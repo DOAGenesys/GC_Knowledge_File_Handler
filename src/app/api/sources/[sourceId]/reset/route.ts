@@ -33,5 +33,5 @@ export const POST = route(async (req: NextRequest, ctx) => {
   }
 
   const result = await resetSource(id, body.replacementName);
-  return jsonOk({ source: annotate(result.source), renamed: result.renamed });
+  return jsonOk({ source: annotate(result.source) });
 });

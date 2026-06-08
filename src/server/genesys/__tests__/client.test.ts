@@ -120,7 +120,7 @@ describe('Genesys client', () => {
     expect(sentBody).not.toHaveProperty('triggerType');
   });
 
-  it('resets a source by staging a unique replacement before deleting and renaming', async () => {
+  it('resets a source by deleting the original BEFORE creating the replacement (capacity-safe)', async () => {
     const calls: Array<{ method?: string; path: string; body?: Record<string, unknown> }> = [];
     withToken((url, init) => {
       const path = new URL(url).pathname;
@@ -129,21 +129,13 @@ describe('Genesys client', () => {
         : undefined;
       calls.push({ method: init.method, path, body });
 
-      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
-        expect(body?.name).not.toBe('Worldline');
-        expect(body?.name).toContain('Worldline');
-        return json(200, {
-          id: 'replacement-src',
-          name: body?.name,
-          type: 'FileUpload',
-          status: 'Active',
-        });
-      }
       if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
         return json(200, null);
       }
-      if (init.method === 'PUT' && path === '/api/v2/knowledge/sources/replacement-src') {
-        expect(body).toMatchObject({ name: 'Worldline' });
+      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
+        // The replacement is created with the final name directly — no staging
+        // name, no rename step.
+        expect(body).toMatchObject({ name: 'Worldline', type: 'FileUpload' });
         return json(200, {
           id: 'replacement-src',
           name: 'Worldline',
@@ -158,31 +150,22 @@ describe('Genesys client', () => {
     const result = await client.resetSource('original-src', 'Worldline');
 
     expect(result).toMatchObject({
-      renamed: true,
       source: { id: 'replacement-src', name: 'Worldline', type: 'FileUpload' },
     });
-    expect(calls.map((c) => c.method)).toEqual(['POST', 'DELETE', 'PUT']);
+    // Delete must precede create so the org source slot is freed first.
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'DELETE /api/v2/knowledge/sources/original-src',
+      'POST /api/v2/knowledge/sources',
+    ]);
   });
 
-  it('cleans up the staged replacement when reset deletion fails', async () => {
+  it('does not create a replacement when the original delete is denied', async () => {
     const calls: Array<{ method?: string; path: string }> = [];
     withToken((url, init) => {
       const path = new URL(url).pathname;
       calls.push({ method: init.method, path });
-
-      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
-        return json(200, {
-          id: 'replacement-src',
-          name: 'Worldline reset',
-          type: 'FileUpload',
-          status: 'Active',
-        });
-      }
       if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
         return json(403, { message: 'delete denied' });
-      }
-      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/replacement-src') {
-        return json(200, null);
       }
       return json(500, { message: 'unexpected call' });
     });
@@ -191,10 +174,58 @@ describe('Genesys client', () => {
     await expect(client.resetSource('original-src', 'Worldline')).rejects.toMatchObject({
       code: 'GENESYS_PERMISSION_DENIED',
     });
+    // The create is never attempted when the original could not be deleted.
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-      'POST /api/v2/knowledge/sources',
       'DELETE /api/v2/knowledge/sources/original-src',
-      'DELETE /api/v2/knowledge/sources/replacement-src',
+    ]);
+  });
+
+  it('treats an already-deleted original as deletable and proceeds to create (retry resilience)', async () => {
+    const calls: Array<{ method?: string; path: string }> = [];
+    withToken((url, init) => {
+      const path = new URL(url).pathname;
+      calls.push({ method: init.method, path });
+      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
+        return json(404, { message: 'not found' });
+      }
+      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
+        return json(200, {
+          id: 'replacement-src',
+          name: 'Worldline',
+          type: 'FileUpload',
+          status: 'Active',
+        });
+      }
+      return json(500, { message: 'unexpected call' });
+    });
+
+    const client = await fresh();
+    const result = await client.resetSource('original-src', 'Worldline');
+    expect(result.source.id).toBe('replacement-src');
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'DELETE /api/v2/knowledge/sources/original-src',
+      'POST /api/v2/knowledge/sources',
+    ]);
+  });
+
+  it('does not create a replacement when the original delete is ambiguous (unknown outcome)', async () => {
+    const calls: Array<{ method?: string; path: string }> = [];
+    withToken((url, init) => {
+      const path = new URL(url).pathname;
+      calls.push({ method: init.method, path });
+      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
+        return json(504, { message: 'gateway timeout' });
+      }
+      return json(500, { message: 'unexpected call' });
+    });
+
+    const client = await fresh();
+    await expect(client.resetSource('original-src', 'Worldline')).rejects.toMatchObject({
+      code: 'SOURCE_DELETE_UNKNOWN',
+    });
+    // An ambiguous delete must NOT lead to a create (would risk a duplicate).
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'DELETE /api/v2/knowledge/sources/original-src',
     ]);
   });
 
