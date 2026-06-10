@@ -421,7 +421,7 @@ export default function NewSyncPage() {
             <div className="faint" style={{ fontSize: 12, marginTop: 12, lineHeight: 1.5 }}>
               {syncType === 'Incremental'
                 ? 'Default. Adds or updates the files you upload this round.'
-                : 'Replacement semantics depend on your Genesys environment — requires explicit confirmation.'}
+                : 'Replaces all existing source content with the files you upload this round. Requires explicit confirmation.'}
             </div>
             {!fullEnabled ? (
               <div style={{ marginTop: 12 }}>
@@ -433,8 +433,8 @@ export default function NewSyncPage() {
             {syncType === 'Full' ? (
               <div style={{ marginTop: 12 }}>
                 <Callout tone="warning" title="Full sync">
-                  Confirm how your Genesys environment handles files that are missing from this
-                  upload.
+                  Files already in the source that you do not upload this round will be removed when
+                  the sync completes. Include every file you want to keep.
                 </Callout>
               </div>
             ) : null}
@@ -587,14 +587,15 @@ export default function NewSyncPage() {
         }}
         tone="warning"
         icon="alert"
-        title="Confirm Full synchronization"
+        title="Confirm full sync"
         body={
           <>
-            A <strong>Full</strong> sync may replace existing content depending on your Genesys
-            configuration. Confirm you understand how missing files are handled before continuing.
+            A <strong>Full</strong> sync replaces all existing content in this source with only the
+            files you upload in this round. Any file already in the source that you do not upload
+            will be removed.
           </>
         }
-        confirmLabel="I understand — start Full sync"
+        confirmLabel="Replace source content — start Full sync"
       />
     </div>
   );

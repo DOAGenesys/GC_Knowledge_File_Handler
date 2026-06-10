@@ -134,16 +134,6 @@ export const deleteSourceBodySchema = z
   .object({
     sourceId: uuidSchema,
     confirmName: z.string().min(1).max(200),
-    purpose: z.enum(['reset']).optional(),
-  })
-  .strict();
-
-/** Reset-source request body (feature-flagged). Typed confirmation required. */
-export const resetSourceBodySchema = z
-  .object({
-    sourceId: uuidSchema,
-    confirmName: z.string().min(1).max(200),
-    replacementName: z.string().min(1).max(200),
   })
   .strict();
 

@@ -101,24 +101,6 @@ function isCompatible(detail: ValidatedSource): boolean {
   return detail.isCompatibleFileUploadSource ?? typeMeta(detail.type).compatible;
 }
 
-function resetSourceRecord(current: SourceRecord, replacement: ValidatedSource): SourceRecord {
-  const now = Date.now();
-  return {
-    ...current,
-    sourceId: replacement.id,
-    displayName: replacement.name ?? current.displayName,
-    sourceType: (replacement.type as SourceType) ?? 'FileUpload',
-    remoteName: replacement.name ?? current.displayName,
-    remoteStatus: (replacement.status as RemoteSourceStatus | undefined) ?? 'Active',
-    isCompatibleFileUploadSource: isCompatible(replacement),
-    createdByApp: true,
-    lastValidatedAt: now,
-    lastRemoteSyncAt: parseDate(replacement.dateLastSync),
-    lastUsedAt: null,
-    localOnly: false,
-  };
-}
-
 /* ------------------------------------------------------------------ */
 /* Small presentational helper                                        */
 /* ------------------------------------------------------------------ */
@@ -144,7 +126,7 @@ function RemoteStatusPill({ status }: { status: string | null | undefined }) {
 /* ================================================================== */
 
 export default function SourcesPage() {
-  const { sources, features, updateVault, toast, activeRun } = useApp();
+  const { sources, features, updateVault, toast } = useApp();
   const router = useRouter();
 
   const [view, setView] = useState<'registry' | 'discovery'>('registry');
@@ -153,12 +135,10 @@ export default function SourcesPage() {
   const [showExisting, setShowExisting] = useState(false);
   const [renameTarget, setRenameTarget] = useState<SourceRecord | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<SourceRecord | null>(null);
-  const [resetTarget, setResetTarget] = useState<SourceRecord | null>(null);
   const [detail, setDetail] = useState<SourceRecord | null>(null);
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
 
   const visible = sources.filter((s) => (showArchived ? true : !s.archived));
-  const canResetSources = features.ENABLE_SOURCE_CREATION && features.ENABLE_SOURCE_RESET;
 
   const refreshStatus = async (key: string) => {
     const rec = sources.find((s) => s.localSourceKey === key);
@@ -243,21 +223,6 @@ export default function SourcesPage() {
     });
   };
 
-  const applyReset = async (replacement: SourceRecord) => {
-    await updateVault((draft) => {
-      const idx = draft.sourceRegistry.findIndex(
-        (x) => x.localSourceKey === replacement.localSourceKey,
-      );
-      if (idx >= 0) draft.sourceRegistry[idx] = replacement;
-    });
-    setDetail((d) => (d && d.localSourceKey === replacement.localSourceKey ? replacement : d));
-    toast({
-      tone: 'success',
-      title: 'Source reset',
-      body: `${replacement.displayName} is empty and ready for new syncs.`,
-    });
-  };
-
   const tabs: { value: 'registry' | 'discovery'; label: string }[] = [
     { value: 'registry', label: 'Your sources' },
   ];
@@ -312,7 +277,6 @@ export default function SourcesPage() {
               onRefresh={() => void refreshStatus(s.localSourceKey)}
               onRename={() => setRenameTarget(s)}
               onArchive={() => setArchiveTarget(s)}
-              onReset={canResetSources ? () => setResetTarget(s) : undefined}
               onDetail={() => setDetail(s)}
               onSync={() => router.push('/new')}
             />
@@ -378,18 +342,6 @@ export default function SourcesPage() {
         confirmLabel={archiveTarget?.archived ? 'Restore' : 'Archive'}
       />
 
-      {canResetSources && (
-        <ResetSourceModal
-          source={resetTarget}
-          activeRun={activeRun}
-          onClose={() => setResetTarget(null)}
-          onReset={async (replacement) => {
-            setResetTarget(null);
-            await applyReset(replacement);
-          }}
-        />
-      )}
-
       <SourceDetailDrawer
         source={detail}
         onClose={() => setDetail(null)}
@@ -420,7 +372,6 @@ export default function SourcesPage() {
             body: 'The source was deleted in Genesys and removed from this app.',
           });
         }}
-        onReset={applyReset}
       />
     </div>
   );
@@ -436,7 +387,6 @@ function SourceCard({
   onRefresh,
   onRename,
   onArchive,
-  onReset,
   onDetail,
   onSync,
 }: {
@@ -445,7 +395,6 @@ function SourceCard({
   onRefresh: () => void;
   onRename: () => void;
   onArchive: () => void;
-  onReset?: () => void;
   onDetail: () => void;
   onSync: () => void;
 }) {
@@ -526,13 +475,6 @@ function SourceCard({
               Sync
             </Btn>
           )}
-          {!s.archived && onReset ? (
-            <Tip text="Reset source">
-              <Btn variant="danger-solid" size="sm" icon="rotate" onClick={onReset}>
-                Reset
-              </Btn>
-            </Tip>
-          ) : null}
           <Tip text="Refresh status from Genesys">
             <IconBtn
               icon={refreshing ? 'loader' : 'refresh'}
@@ -816,14 +758,12 @@ function SourceDetailDrawer({
   onRefresh,
   onUpdated,
   onDeleted,
-  onReset,
 }: {
   source: SourceRecord | null;
   onClose: () => void;
   onRefresh: (key: string) => void;
   onUpdated: (name: string) => void;
   onDeleted: (key: string) => Promise<void>;
-  onReset: (replacement: SourceRecord) => Promise<void>;
 }) {
   const { features, activeRun, toast } = useApp();
   const [activity, setActivity] = useState<GenesysSynchronizationSummary[]>([]);
@@ -833,7 +773,6 @@ function SourceDetailDrawer({
   const [editName, setEditName] = useState('');
   const [editing, setEditing] = useState(false);
   const [savingName, setSavingName] = useState(false);
-  const [showReset, setShowReset] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
 
   const sourceId = source?.sourceId ?? null;
@@ -841,7 +780,6 @@ function SourceDetailDrawer({
   useEffect(() => {
     setSelSync(null);
     setEditing(false);
-    setShowReset(false);
     setShowDelete(false);
     if (source) setEditName(source.displayName);
   }, [source]);
@@ -879,8 +817,7 @@ function SourceDetailDrawer({
 
   if (!source) return null;
   const tm = typeMeta(source.sourceType);
-  const resetOn = features.ENABLE_SOURCE_CREATION && features.ENABLE_SOURCE_RESET;
-  const dangerOn = features.ENABLE_SOURCE_UPDATE || features.ENABLE_SOURCE_DELETE || resetOn;
+  const dangerOn = features.ENABLE_SOURCE_UPDATE || features.ENABLE_SOURCE_DELETE;
 
   const selectSync = async (row: GenesysSynchronizationSummary) => {
     setSelSync(row);
@@ -1130,11 +1067,10 @@ function SourceDetailDrawer({
                   <div
                     className="between"
                     style={{
-                      paddingBottom: resetOn || features.ENABLE_SOURCE_DELETE ? 14 : 0,
-                      borderBottom:
-                        resetOn || features.ENABLE_SOURCE_DELETE
-                          ? '1px solid var(--danger-line)'
-                          : 'none',
+                      paddingBottom: features.ENABLE_SOURCE_DELETE ? 14 : 0,
+                      borderBottom: features.ENABLE_SOURCE_DELETE
+                        ? '1px solid var(--danger-line)'
+                        : 'none',
                       gap: 14,
                       flexWrap: 'wrap',
                     }}
@@ -1173,40 +1109,11 @@ function SourceDetailDrawer({
                     )}
                   </div>
                 )}
-                {resetOn && (
-                  <div
-                    className="between"
-                    style={{
-                      paddingTop: features.ENABLE_SOURCE_UPDATE ? 14 : 0,
-                      paddingBottom: features.ENABLE_SOURCE_DELETE ? 14 : 0,
-                      borderBottom: features.ENABLE_SOURCE_DELETE
-                        ? '1px solid var(--danger-line)'
-                        : 'none',
-                      gap: 14,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 650, fontSize: 13 }}>Reset source</div>
-                      <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>
-                        Recreate this source empty. Existing content is removed.
-                      </div>
-                    </div>
-                    <Btn
-                      variant="danger-solid"
-                      size="sm"
-                      icon="rotate"
-                      onClick={() => setShowReset(true)}
-                    >
-                      Reset source
-                    </Btn>
-                  </div>
-                )}
                 {features.ENABLE_SOURCE_DELETE && (
                   <div
                     className="between"
                     style={{
-                      paddingTop: features.ENABLE_SOURCE_UPDATE || resetOn ? 14 : 0,
+                      paddingTop: features.ENABLE_SOURCE_UPDATE ? 14 : 0,
                       gap: 14,
                       flexWrap: 'wrap',
                     }}
@@ -1241,17 +1148,6 @@ function SourceDetailDrawer({
           onDeleted={async () => {
             setShowDelete(false);
             await onDeleted(source.localSourceKey);
-          }}
-        />
-      )}
-      {resetOn && (
-        <ResetSourceModal
-          source={showReset ? source : null}
-          activeRun={activeRun}
-          onClose={() => setShowReset(false)}
-          onReset={async (replacement) => {
-            setShowReset(false);
-            await onReset(replacement);
           }}
         />
       )}
@@ -1646,167 +1542,6 @@ function RenameModal({
         </Btn>
         <Btn variant="primary" onClick={() => target && onSave(target, name)}>
           Save
-        </Btn>
-      </div>
-    </Modal>
-  );
-}
-
-/* ================================================================== */
-/* Reset source modal                                                 */
-/* ================================================================== */
-
-function ResetSourceModal({
-  source,
-  activeRun,
-  onClose,
-  onReset,
-}: {
-  source: SourceRecord | null;
-  activeRun: ReturnType<typeof useApp>['activeRun'];
-  onClose: () => void;
-  onReset: (replacement: SourceRecord) => Promise<void>;
-}) {
-  const { toast } = useApp();
-  const [typed, setTyped] = useState('');
-  const [name, setName] = useState('');
-  const [err, setErr] = useState('');
-  const [resetting, setResetting] = useState(false);
-
-  useEffect(() => {
-    if (source) {
-      setTyped('');
-      setName(source.displayName);
-      setErr('');
-      setResetting(false);
-    }
-  }, [source]);
-
-  if (!source) return null;
-
-  const blocked =
-    !!activeRun &&
-    activeRun.sourceId === source.sourceId &&
-    (['Running', 'Cancelling', 'NeedsUserAction'] as const).includes(
-      activeRun.status as 'Running' | 'Cancelling' | 'NeedsUserAction',
-    );
-  const match = typed.trim() === source.displayName;
-  const replacementName = name.trim() || source.displayName;
-
-  const confirm = async () => {
-    if (blocked || !match || resetting) return;
-    if (replacementName.length > 200) {
-      setErr('Source name must be 200 characters or less.');
-      return;
-    }
-
-    setResetting(true);
-    setErr('');
-    try {
-      const result = await api.post<{ source: ValidatedSource }>(
-        `/api/sources/${encodeURIComponent(source.sourceId)}/reset`,
-        {
-          sourceId: source.sourceId,
-          confirmName: source.displayName,
-          replacementName,
-        },
-      );
-      await onReset(resetSourceRecord(source, result.source));
-    } catch (err2) {
-      const e = err2 as ApiError;
-      toast({ tone: 'danger', title: 'Reset failed', body: e.message });
-      setErr(e.message);
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  return (
-    <Modal open={!!source} onClose={onClose} compact>
-      <div className="modal-body">
-        <div className="modal-head">
-          <div
-            className="modal-icon"
-            style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}
-          >
-            <Icon name="rotate" size={20} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ fontSize: 16 }}>Reset source</h3>
-            <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-              Replace this source with a new empty one.
-            </div>
-          </div>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <Callout tone="danger" icon="alertCircle" title="This removes the current content">
-            Deletes the current Genesys source, then points future syncs to a new empty source.
-          </Callout>
-          {blocked ? (
-            <div style={{ marginTop: 12 }}>
-              <Callout tone="warning" icon="alert" title="Blocked — sync in progress">
-                A sync for this source is active or ambiguous. Resolve or cancel it before
-                resetting.
-              </Callout>
-            </div>
-          ) : (
-            <div className="grid" style={{ gap: 10, marginTop: 12 }}>
-              <Field
-                label="Replacement source name"
-                error={err}
-                hint="Leave unchanged to reuse the current display name."
-              >
-                <input
-                  className={`input ${err ? 'input-err' : ''}`}
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setErr('');
-                  }}
-                  placeholder={source.displayName}
-                />
-              </Field>
-              <Field
-                label={
-                  <>
-                    Type{' '}
-                    <span className="mono" style={{ color: 'var(--danger)' }}>
-                      {source.displayName}
-                    </span>{' '}
-                    to confirm
-                  </>
-                }
-              >
-                <input
-                  className="input"
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                  placeholder={source.displayName}
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && void confirm()}
-                />
-              </Field>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="modal-foot">
-        <Btn variant="ghost" onClick={onClose}>
-          Cancel
-        </Btn>
-        <Btn
-          variant="danger-solid"
-          icon={resetting ? undefined : 'rotate'}
-          disabled={blocked || !match || resetting}
-          onClick={() => void confirm()}
-        >
-          {resetting ? (
-            <>
-              <Spinner size={15} /> Resetting…
-            </>
-          ) : (
-            'Reset source'
-          )}
         </Btn>
       </div>
     </Modal>

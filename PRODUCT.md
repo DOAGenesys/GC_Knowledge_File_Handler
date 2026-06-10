@@ -177,7 +177,7 @@ Product default:
 
 Safety rule:
 
-- `Full` sync requires explicit confirmation explaining that full-replacement/deletion semantics must be verified in the customer’s Genesys environment before relying on it. The app must not make undocumented promises about missing-file treatment.
+- `Full` sync requires explicit confirmation. Full sync replaces all existing source content with the files uploaded in that round; files not included in the upload are removed when the sync completes.
 
 #### Request upload URL
 
@@ -525,7 +525,7 @@ Full sync is disabled by default unless the deployment explicitly enables it.
 When enabled:
 
 1. User chooses `Full` sync.
-2. UI explains that full-replacement or deletion semantics must be verified in the customer’s Genesys environment.
+2. UI explains that Full sync replaces all existing source content and removes files not included in the upload.
 3. User provides typed confirmation.
 4. Workflow proceeds with the same safety rules as incremental sync.
 

@@ -12,7 +12,6 @@ export const FEATURE_KEYS = [
   'ENABLE_ORG_SYNC_DIAGNOSTICS',
   'ENABLE_FULL_SYNC',
   'ENABLE_SOURCE_UPDATE',
-  'ENABLE_SOURCE_RESET',
   'ENABLE_SOURCE_DELETE',
 ] as const;
 
@@ -33,7 +32,6 @@ export const FEATURE_DEFAULTS: FeatureFlags = {
   ENABLE_ORG_SYNC_DIAGNOSTICS: false,
   ENABLE_FULL_SYNC: false,
   ENABLE_SOURCE_UPDATE: false,
-  ENABLE_SOURCE_RESET: true,
   ENABLE_SOURCE_DELETE: false,
 };
 
@@ -80,7 +78,7 @@ export const FEATURE_META: readonly FeatureMeta[] = [
   {
     key: 'ENABLE_FULL_SYNC',
     label: 'Full sync',
-    desc: 'Allow Full replacement synchronizations',
+    desc: 'Allow Full sync — replaces all existing source files with each upload round',
     endpoint: 'type: Full',
   },
   {
@@ -88,13 +86,6 @@ export const FEATURE_META: readonly FeatureMeta[] = [
     label: 'Update source',
     desc: 'Edit FileUpload-safe source fields',
     endpoint: 'PUT /knowledge/sources/{id}',
-    danger: true,
-  },
-  {
-    key: 'ENABLE_SOURCE_RESET',
-    label: 'Reset source',
-    desc: 'Replace an existing source with a new empty source',
-    endpoint: 'POST /knowledge/sources + DELETE /knowledge/sources/{id}',
     danger: true,
   },
   {

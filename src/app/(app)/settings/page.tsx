@@ -432,7 +432,7 @@ export default function SettingsPage() {
           <div className="card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             <SettingRow
               title="Default sync type"
-              desc="Full syncs always require an extra confirmation."
+              desc="Full sync replaces all source content with your upload. An extra confirmation is always required."
             >
               <Segmented<SyncType>
                 value={prefs.defaultSyncType}

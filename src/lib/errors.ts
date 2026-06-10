@@ -201,9 +201,9 @@ export const ERROR_META: Record<ErrorCode, ErrorMeta> = {
     severity: 'error',
     retryable: false,
     message:
-      'This source is linked to other Genesys assets and cannot be reset yet. Detach or unlink it from Agent Copilot, AVAs, or other assets before resetting.',
+      'This source is linked to other Genesys assets and cannot be deleted. Detach or unlink it from Agent Copilot, AVAs, or other assets before deleting.',
     nextAction:
-      'Detach or unlink this source from Agent Copilot, AVAs, or other Genesys assets before resetting it.',
+      'Detach or unlink this source from Agent Copilot, AVAs, or other Genesys assets before deleting it.',
     httpStatus: 409,
   },
   SYNC_START_FAILED: {

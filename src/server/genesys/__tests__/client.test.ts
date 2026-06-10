@@ -32,8 +32,8 @@ async function fresh() {
       client.listSources(options, { authContext: authContext() }),
     getSource: (sourceId: string) => client.getSource(sourceId, { authContext: authContext() }),
     createSource: (name: string) => client.createSource(name, { authContext: authContext() }),
-    resetSource: (sourceId: string, replacementName: string) =>
-      client.resetSource(sourceId, replacementName, { authContext: authContext() }),
+    deleteSource: (sourceId: string) =>
+      client.deleteSource(sourceId, { authContext: authContext() }),
     startSynchronization: (sourceId: string, type: 'Incremental' | 'Full') =>
       client.startSynchronization(sourceId, type, { authContext: authContext() }),
     requestUploadUrl: (
@@ -120,67 +120,7 @@ describe('Genesys client', () => {
     expect(sentBody).not.toHaveProperty('triggerType');
   });
 
-  it('resets a source by deleting the original BEFORE creating the replacement (capacity-safe)', async () => {
-    const calls: Array<{ method?: string; path: string; body?: Record<string, unknown> }> = [];
-    withToken((url, init) => {
-      const path = new URL(url).pathname;
-      const body = init.body
-        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
-        : undefined;
-      calls.push({ method: init.method, path, body });
-
-      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
-        return json(200, null);
-      }
-      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
-        // The replacement is created with the final name directly — no staging
-        // name, no rename step.
-        expect(body).toMatchObject({ name: 'Worldline', type: 'FileUpload' });
-        return json(200, {
-          id: 'replacement-src',
-          name: 'Worldline',
-          type: 'FileUpload',
-          status: 'Active',
-        });
-      }
-      return json(500, { message: 'unexpected call' });
-    });
-
-    const client = await fresh();
-    const result = await client.resetSource('original-src', 'Worldline');
-
-    expect(result).toMatchObject({
-      source: { id: 'replacement-src', name: 'Worldline', type: 'FileUpload' },
-    });
-    // Delete must precede create so the org source slot is freed first.
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-      'DELETE /api/v2/knowledge/sources/original-src',
-      'POST /api/v2/knowledge/sources',
-    ]);
-  });
-
-  it('does not create a replacement when the original delete is denied', async () => {
-    const calls: Array<{ method?: string; path: string }> = [];
-    withToken((url, init) => {
-      const path = new URL(url).pathname;
-      calls.push({ method: init.method, path });
-      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
-        return json(403, { message: 'delete denied' });
-      }
-      return json(500, { message: 'unexpected call' });
-    });
-
-    const client = await fresh();
-    await expect(client.resetSource('original-src', 'Worldline')).rejects.toMatchObject({
-      code: 'GENESYS_PERMISSION_DENIED',
-    });
-    // The create is never attempted when the original could not be deleted.
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-      'DELETE /api/v2/knowledge/sources/original-src',
-    ]);
-  });
-
-  it('maps a source-in-use delete conflict to SOURCE_IN_USE and does not create a replacement', async () => {
+  it('maps a source-in-use delete conflict to SOURCE_IN_USE', async () => {
     const calls: Array<{ method?: string; path: string }> = [];
     withToken((url, init) => {
       const path = new URL(url).pathname;
@@ -197,58 +137,9 @@ describe('Genesys client', () => {
     });
 
     const client = await fresh();
-    await expect(client.resetSource('original-src', 'Worldline')).rejects.toMatchObject({
+    await expect(client.deleteSource('original-src')).rejects.toMatchObject({
       code: 'SOURCE_IN_USE',
     });
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-      'DELETE /api/v2/knowledge/sources/original-src',
-    ]);
-  });
-
-  it('treats an already-deleted original as deletable and proceeds to create (retry resilience)', async () => {
-    const calls: Array<{ method?: string; path: string }> = [];
-    withToken((url, init) => {
-      const path = new URL(url).pathname;
-      calls.push({ method: init.method, path });
-      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
-        return json(404, { message: 'not found' });
-      }
-      if (init.method === 'POST' && path === '/api/v2/knowledge/sources') {
-        return json(200, {
-          id: 'replacement-src',
-          name: 'Worldline',
-          type: 'FileUpload',
-          status: 'Active',
-        });
-      }
-      return json(500, { message: 'unexpected call' });
-    });
-
-    const client = await fresh();
-    const result = await client.resetSource('original-src', 'Worldline');
-    expect(result.source.id).toBe('replacement-src');
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-      'DELETE /api/v2/knowledge/sources/original-src',
-      'POST /api/v2/knowledge/sources',
-    ]);
-  });
-
-  it('does not create a replacement when the original delete is ambiguous (unknown outcome)', async () => {
-    const calls: Array<{ method?: string; path: string }> = [];
-    withToken((url, init) => {
-      const path = new URL(url).pathname;
-      calls.push({ method: init.method, path });
-      if (init.method === 'DELETE' && path === '/api/v2/knowledge/sources/original-src') {
-        return json(504, { message: 'gateway timeout' });
-      }
-      return json(500, { message: 'unexpected call' });
-    });
-
-    const client = await fresh();
-    await expect(client.resetSource('original-src', 'Worldline')).rejects.toMatchObject({
-      code: 'SOURCE_DELETE_UNKNOWN',
-    });
-    // An ambiguous delete must NOT lead to a create (would risk a duplicate).
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
       'DELETE /api/v2/knowledge/sources/original-src',
     ]);

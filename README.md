@@ -188,8 +188,8 @@ A pending upload cannot resume after a tab close/refresh unless the user
 reselects the file (the browser lost the `File`); local history is browser-local;
 cross-browser locking is best-effort; ambiguous external side effects may need
 manual Genesys verification. Per-file delete/update in Genesys is not available
-for FileUpload sources — use **Reset source** (delete and recreate empty) when
-you need to clear synced content. See [`PRODUCT.md` §20](./PRODUCT.md) and
+for FileUpload sources — use **Full sync** with the complete intended file set
+when you need to replace synced content. See [`PRODUCT.md` §20](./PRODUCT.md) and
 [`docs/runbooks.md`](./docs/runbooks.md).
 
 > **Deployment validation note.** The durable workflow + direct-upload path is

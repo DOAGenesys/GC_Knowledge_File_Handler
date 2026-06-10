@@ -72,7 +72,7 @@ destructive OFF). Accepted truthy values: `1`, `true`, `yes`, `on`.
 | `ENABLE_SOURCE_CREATION` | `true` | Create FileUpload sources. |
 | `ENABLE_SOURCE_HISTORY` | `true` | Read per-source synchronization history (read-only). |
 | `ENABLE_ORG_SYNC_DIAGNOSTICS` | `false` | Support-only org-wide sync view (read-only). |
-| `ENABLE_FULL_SYNC` | `false` | Allow `Full` replacement synchronizations. |
+| `ENABLE_FULL_SYNC` | `false` | Allow Full sync (replaces all existing source files with each upload round). |
 | `ENABLE_PROXY_UPLOAD` | `false` | Same-origin streaming upload fallback when direct upload is CORS-blocked. |
 | `ENABLE_SOURCE_UPDATE` | `false` | Edit FileUpload-safe source fields (destructive). |
 | `ENABLE_SOURCE_DELETE` | `false` | Permanently delete a source (destructive, unrecoverable). |

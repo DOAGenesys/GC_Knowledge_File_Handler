@@ -261,43 +261,6 @@ export async function createSource(
   );
 }
 
-export interface ResetSourceResult {
-  source: GenesysSourceDetail;
-}
-
-/**
- * Reset a source: delete the existing source, then create an empty replacement
- * with the requested name.
- *
- * The delete MUST happen before the create. Genesys orgs cap the number of
- * Knowledge sources, so creating first would be rejected at capacity. Deleting
- * first frees the slot, and because the original is gone there is no name
- * collision — the replacement can use the final name directly (no staging
- * name / rename step).
- *
- * Reset intentionally discards the current source and its content. The delete
- * is only short-circuited when the source is already gone (SOURCE_NOT_FOUND),
- * which makes a retry after a failed create idempotent instead of dead-ending
- * on a 404. An ambiguous delete (SOURCE_DELETE_UNKNOWN) still throws, so we
- * never create a replacement while the original's fate is unconfirmed.
- */
-export async function resetSource(
-  sourceId: string,
-  replacementName: string,
-  context: GenesysClientContext = {},
-): Promise<ResetSourceResult> {
-  const finalName = replacementName.trim();
-
-  try {
-    await deleteSource(sourceId, context);
-  } catch (err) {
-    if (!(err instanceof AppError) || err.code !== 'SOURCE_NOT_FOUND') throw err;
-    logger.info('genesys.source.reset.already_deleted', { outcome: 'proceeding_to_create' });
-  }
-
-  return { source: await createSource(finalName, context) };
-}
-
 export async function startSynchronization(
   sourceId: string,
   type: SyncType,
