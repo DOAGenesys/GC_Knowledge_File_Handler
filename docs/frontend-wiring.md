@@ -105,7 +105,7 @@ bytes never reach the server.**
 | Validate destination | `GET /api/sources/{id}` → `updateVault` updates `lastValidatedAt` / compatibility |
 | Sync type (Incremental / Full) | `prefs.defaultSyncType`; **Full** option only when `features.ENABLE_FULL_SYNC` |
 | File extension + name validation | `validateFile` / `sanitizeUploadName` / `getExtension` / `mimeFromExtension` (`src/lib/validation.ts`); allowed extensions from `SUPPORTED_EXTENSIONS` (`src/lib/constants.ts`) |
-| Document URL | Optional per-file HTTPS `originUri`; shown in preflight so Agent Copilot source links can open the original document |
+| Document URL | Optional per-file HTTPS `originUri`; shown in preflight and sent as Genesys upload `metadata.originUri` so Agent Copilot source links can open the original document |
 | Fingerprinting | `hashBlob` + `mapWithConcurrency` (`src/lib/hashing.ts`) → SHA-256 (local) + MD5 base64 (`contentMd5`) |
 | Preflight table | Derived `computed[]` (per-file blocking/warnings, dup detection vs siblings, rename suggestion) |
 | Start sync | `POST /api/sync/start` with metadata-only `files` manifest → returns `{ workflowRunId }`; sets in-memory `activeRun`, navigates to `/run` |

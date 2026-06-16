@@ -201,8 +201,11 @@ describe('Genesys client', () => {
     expect(sentBody).toMatchObject({
       fileName: 'a.txt',
       contentMd5: 'kAFQmDzST7DWlj99KOF/cg==',
-      originUri: 'https://docs.example.com/a.txt',
+      metadata: {
+        originUri: 'https://docs.example.com/a.txt',
+      },
     });
+    expect(sentBody).not.toHaveProperty('originUri');
   });
 
   it('patch Completed maps a timeout to COMPLETION_UNKNOWN', async () => {

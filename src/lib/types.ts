@@ -117,7 +117,7 @@ export interface FileRecord {
   contentMd5Base64: string | null;
   originUri?: string;
   tags?: GenesysTag[];
-  metadata?: Record<string, string>;
+  metadata?: GenesysUploadMetadata;
   uploadStatus: FileState;
   attempts: number;
   lastErrorCode: string | null;
@@ -150,6 +150,11 @@ export interface SyncRunRecord {
 export interface GenesysTag {
   /** Genesys tag identifier or name. */
   name: string;
+}
+
+export interface GenesysUploadMetadata {
+  originUri?: string;
+  tags?: GenesysTag[];
 }
 
 /** User preferences persisted in the vault. */

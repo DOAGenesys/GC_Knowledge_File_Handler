@@ -288,7 +288,7 @@ export interface RequestUploadInput {
   contentMd5?: string | null;
   contentType?: string;
   contentLength?: number;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, unknown>;
   originUri?: string;
   tags?: { name: string }[];
 }
@@ -303,9 +303,10 @@ export async function requestUploadUrl(
   if (input.contentMd5) body.contentMd5 = input.contentMd5;
   if (input.contentType) body.contentType = input.contentType;
   if (typeof input.contentLength === 'number') body.contentLength = input.contentLength;
-  if (input.metadata && Object.keys(input.metadata).length) body.metadata = input.metadata;
-  if (input.originUri) body.originUri = input.originUri;
-  if (input.tags && input.tags.length) body.tags = input.tags;
+  const metadata: Record<string, unknown> = { ...(input.metadata ?? {}) };
+  if (input.originUri) metadata.originUri = input.originUri;
+  if (input.tags && input.tags.length) metadata.tags = input.tags;
+  if (Object.keys(metadata).length) body.metadata = metadata;
 
   const result = await genesysRequest({
     path: GENESYS_ENDPOINTS.uploads(sourceId, synchronizationId),

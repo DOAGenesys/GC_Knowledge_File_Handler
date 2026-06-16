@@ -113,8 +113,9 @@ Only **non-secret** app metadata, encrypted inside the vault. The decrypted payl
   `errorSummary`, timestamps.
 - File records (`FileRecord[]`) — **metadata only, never bytes**: original name, sanitized upload
   name, extension, MIME `contentType`, `contentLength`, `lastModified`, `sha256Base64` (local
-  fingerprint), `contentMd5Base64` (Genesys integrity), optional `originUri` / `tags` / `metadata`,
-  per-file `uploadStatus` (`FileState`), attempt count, redacted last error.
+  fingerprint), `contentMd5Base64` (Genesys integrity), optional `originUri` / `tags` / upload
+  `metadata`, per-file `uploadStatus` (`FileState`), attempt count, redacted last error. Genesys
+  upload `metadata` contains `originUri` and `tags`.
 - Preferences (`Preferences`): `defaultSyncType`, `sizeWarnMb`, `uploadMode`, `autoRename`,
   `redactNames`, `theme`.
 - Install metadata: `installId`, `schemaVersion`, `createdAt`, `updatedAt`.

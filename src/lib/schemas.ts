@@ -24,6 +24,13 @@ const httpsUrlSchema = z
     message: 'Must be an HTTPS URL',
   });
 
+const uploadMetadataSchema = z
+  .object({
+    originUri: httpsUrlSchema.optional(),
+    tags: z.array(genesysTagSchema).max(50).optional(),
+  })
+  .strict();
+
 /**
  * A single file in a sync manifest. METADATA ONLY — there is no field for file
  * bytes, and the schema is strict so a byte-bearing field would be rejected.
@@ -41,7 +48,7 @@ export const manifestFileSchema = z
     contentMd5Base64: z.string().max(32).nullable(),
     originUri: httpsUrlSchema.optional(),
     tags: z.array(genesysTagSchema).max(50).optional(),
-    metadata: z.record(z.string().max(128), z.string().max(2048)).optional(),
+    metadata: uploadMetadataSchema.optional(),
   })
   .strict();
 
@@ -120,7 +127,7 @@ export const uploadTicketRequestSchema = z
     contentLength: z.number().int().nonnegative().optional(),
     originUri: httpsUrlSchema.optional(),
     tags: z.array(genesysTagSchema).max(50).optional(),
-    metadata: z.record(z.string().max(128), z.string().max(2048)).optional(),
+    metadata: uploadMetadataSchema.optional(),
   })
   .strict();
 
