@@ -16,6 +16,14 @@ export const syncTypeSchema = z.enum(['Incremental', 'Full']);
 
 export const genesysTagSchema = z.object({ name: z.string().min(1).max(100) }).strict();
 
+const httpsUrlSchema = z
+  .string()
+  .url()
+  .max(2048)
+  .refine((value) => value.toLowerCase().startsWith('https://'), {
+    message: 'Must be an HTTPS URL',
+  });
+
 /**
  * A single file in a sync manifest. METADATA ONLY — there is no field for file
  * bytes, and the schema is strict so a byte-bearing field would be rejected.
@@ -31,7 +39,7 @@ export const manifestFileSchema = z
     lastModified: z.number().int().nonnegative(),
     sha256Base64: z.string().max(64).nullable(),
     contentMd5Base64: z.string().max(32).nullable(),
-    originUri: z.string().url().max(2048).optional(),
+    originUri: httpsUrlSchema.optional(),
     tags: z.array(genesysTagSchema).max(50).optional(),
     metadata: z.record(z.string().max(128), z.string().max(2048)).optional(),
   })
@@ -110,7 +118,7 @@ export const uploadTicketRequestSchema = z
     contentMd5: z.string().max(32).nullish(),
     contentType: z.string().max(255).optional(),
     contentLength: z.number().int().nonnegative().optional(),
-    originUri: z.string().url().max(2048).optional(),
+    originUri: httpsUrlSchema.optional(),
     tags: z.array(genesysTagSchema).max(50).optional(),
     metadata: z.record(z.string().max(128), z.string().max(2048)).optional(),
   })

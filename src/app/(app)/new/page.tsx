@@ -38,6 +38,7 @@ interface Item {
   file: File;
   originalName: string;
   uploadName: string;
+  originUri: string;
   size: number;
   type: string;
   lastModified: number;
@@ -50,6 +51,26 @@ interface Item {
 interface Computed extends Item {
   v: FileValidationResult;
   status: string;
+  originUriError: string | null;
+  originUriWarning: string | null;
+}
+
+function normalizeOriginUri(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+}
+
+function validateOriginUri(value: string): string | null {
+  const trimmed = normalizeOriginUri(value);
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'https:') return 'Document URL must start with https://';
+    if (trimmed.length > 2048) return 'Document URL must be 2048 characters or less.';
+    return null;
+  } catch {
+    return 'Document URL must be a valid HTTPS URL.';
+  }
 }
 
 export default function NewSyncPage() {
@@ -99,6 +120,7 @@ export default function NewSyncPage() {
       file: f,
       originalName: f.name,
       uploadName: f.name,
+      originUri: '',
       size: f.size,
       type: f.type || '',
       lastModified: f.lastModified || 0,
@@ -139,18 +161,23 @@ export default function NewSyncPage() {
         siblings,
         { sizeWarnMb: prefs.sizeWarnMb },
       );
+      const originUriError = validateOriginUri(it.originUri);
       const status = it.hashing
         ? 'Hashing'
-        : v.status === 'Invalid'
+        : v.status === 'Invalid' || originUriError
           ? 'Invalid'
           : v.status === 'Warning'
             ? 'Warning'
             : 'Ready';
-      return { ...it, v, status };
+      const originUriWarning =
+        !originUriError && !normalizeOriginUri(it.originUri)
+          ? 'Add a document URL so Agent Copilot can open the original file from source links.'
+          : null;
+      return { ...it, v, status, originUriError, originUriWarning };
     });
   }, [items, prefs.sizeWarnMb]);
 
-  const blockingCount = computed.filter((c) => c.v.blocking.length).length;
+  const blockingCount = computed.filter((c) => c.v.blocking.length || c.originUriError).length;
   const readyCount = computed.filter((c) => c.status === 'Ready' || c.status === 'Warning').length;
   const hashingCount = computed.filter((c) => c.hashing).length;
   const totalSize = items.reduce((s, it) => s + it.size, 0);
@@ -229,6 +256,7 @@ export default function NewSyncPage() {
     const manifest = valid.map((c) => {
       const uploadFileName = sanitizeUploadName(c.uploadName);
       const ext = getExtension(uploadFileName);
+      const originUri = normalizeOriginUri(c.originUri);
       return {
         localFileKey: c.id,
         originalName: c.originalName,
@@ -239,6 +267,7 @@ export default function NewSyncPage() {
         lastModified: c.lastModified,
         sha256Base64: c.sha256,
         contentMd5Base64: c.md5,
+        ...(originUri ? { originUri } : {}),
       };
     });
 
@@ -255,23 +284,27 @@ export default function NewSyncPage() {
         },
       );
 
-      const runFiles: ActiveRunFile[] = valid.map((c) => ({
-        localFileKey: c.id,
-        file: c.file,
-        originalName: c.originalName,
-        uploadFileName: sanitizeUploadName(c.uploadName),
-        extension: getExtension(c.uploadName),
-        contentType: c.type || mimeFromExtension(getExtension(c.uploadName)),
-        contentLength: c.size,
-        lastModified: c.lastModified,
-        sha256Base64: c.sha256,
-        contentMd5Base64: c.md5,
-        status: 'Ready',
-        progress: 0,
-        attemptId: null,
-        attempts: 0,
-        errorCode: null,
-      }));
+      const runFiles: ActiveRunFile[] = valid.map((c) => {
+        const originUri = normalizeOriginUri(c.originUri);
+        return {
+          localFileKey: c.id,
+          file: c.file,
+          originalName: c.originalName,
+          uploadFileName: sanitizeUploadName(c.uploadName),
+          extension: getExtension(c.uploadName),
+          contentType: c.type || mimeFromExtension(getExtension(c.uploadName)),
+          contentLength: c.size,
+          lastModified: c.lastModified,
+          sha256Base64: c.sha256,
+          contentMd5Base64: c.md5,
+          ...(originUri ? { originUri } : {}),
+          status: 'Ready',
+          progress: 0,
+          attemptId: null,
+          attempts: 0,
+          errorCode: null,
+        };
+      });
 
       const run: ActiveRunState = {
         localRunKey,
@@ -512,7 +545,8 @@ export default function NewSyncPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th style={{ width: '40%' }}>File</th>
+                    <th style={{ width: '32%' }}>File</th>
+                    <th style={{ width: '34%' }}>Document URL</th>
                     <th>Size</th>
                     <th>Check</th>
                     <th>Status</th>
@@ -530,6 +564,7 @@ export default function NewSyncPage() {
                         updateItem(c.id, { uploadName: n });
                         setEditId(null);
                       }}
+                      onOriginUri={(originUri) => updateItem(c.id, { originUri })}
                       onApply={() =>
                         c.v.suggestion && updateItem(c.id, { uploadName: c.v.suggestion })
                       }
@@ -622,6 +657,7 @@ function PreflightRow({
   editing,
   onEdit,
   onName,
+  onOriginUri,
   onApply,
   onRemove,
 }: {
@@ -629,6 +665,7 @@ function PreflightRow({
   editing: boolean;
   onEdit: () => void;
   onName: (n: string) => void;
+  onOriginUri: (originUri: string) => void;
   onApply: () => void;
   onRemove: () => void;
 }) {
@@ -713,6 +750,37 @@ function PreflightRow({
             ))}
           </div>
         </div>
+      </td>
+      <td style={{ minWidth: 260 }}>
+        <input
+          className={`input btn-sm ${c.originUriError ? 'input-err' : ''}`}
+          style={{ height: 30, fontSize: 12 }}
+          value={c.originUri}
+          placeholder="https://..."
+          aria-label={`Document URL for ${c.uploadName}`}
+          onChange={(e) => onOriginUri(e.target.value)}
+        />
+        {c.originUriError ? (
+          <div
+            className="row"
+            style={{ gap: 5, fontSize: 11.5, color: 'var(--danger)', marginTop: 4 }}
+          >
+            <Icon name="alertCircle" size={12} />
+            {c.originUriError}
+          </div>
+        ) : c.originUriWarning ? (
+          <div
+            className="row"
+            style={{ gap: 5, fontSize: 11.5, color: 'var(--warning)', marginTop: 4 }}
+          >
+            <Icon name="alert" size={12} />
+            {c.originUriWarning}
+          </div>
+        ) : (
+          <div className="faint" style={{ fontSize: 11.5, marginTop: 4 }}>
+            Used by Agent Copilot source links.
+          </div>
+        )}
       </td>
       <td className="tnum mono" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
         {fmtBytes(c.size)}

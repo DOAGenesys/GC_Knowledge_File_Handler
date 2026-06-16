@@ -211,6 +211,7 @@ function useRunControllerInternal(): RunController {
           contentMd5: f.contentMd5Base64 ?? undefined,
           contentType: f.contentType || undefined,
           contentLength: f.contentLength,
+          originUri: f.originUri || undefined,
         });
       } catch {
         patchFile(localFileKey, {

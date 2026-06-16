@@ -192,7 +192,7 @@ Input fields include:
 - `contentType` — recommended.
 - `contentLength` — recommended.
 - `metadata` — optional.
-- `originUri` — optional if accepted for traceability.
+- `originUri` — optional stable HTTPS URL of the original document; used by Genesys source links such as Agent Copilot citations.
 - `tags` — optional list of tag objects.
 
 File name constraints that must be enforced before requesting upload URLs:

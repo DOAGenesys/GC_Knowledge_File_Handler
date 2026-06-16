@@ -55,11 +55,33 @@ During a sync, users can:
 - Choose the source they want to populate.
 - Select or drag and drop files.
 - Review file names and validation messages before starting.
+- Add the original document URL for each file, so Genesys source links can open the document from Agent Copilot.
 - Start the sync.
 - Watch upload progress.
 - See whether the run completed or needs attention.
 
 The app is designed to be clear about outcomes. It should only show a successful completion when the selected files have successfully uploaded.
+
+### Document URLs For Agent Copilot Source Links
+
+Each uploaded file can include a **Document URL**. This is the stable HTTPS location of the original document, such as a SharePoint, Confluence, intranet, or public document URL.
+
+Document URLs are important because Agent Copilot can show source links for answers. When a document URL is provided, clicking the source can open the original document. When the document URL is missing, Genesys does not have an original document location for that file, so the source link opens the default Genesys experience instead.
+
+Use these rules:
+
+- Use a real, stable `https://` URL for the original document.
+- Do not use a local file path from your computer.
+- Do not use a temporary upload URL.
+- Leave the field empty only when there is no document location to open.
+- Make sure users who click the source link have permission to access the document URL.
+
+Examples:
+
+| File | Good Document URL |
+|---|---|
+| `pricing-faq.pdf` | `https://company.sharepoint.com/sites/kb/pricing-faq.pdf` |
+| `returns-policy.docx` | `https://company.example.com/knowledge/returns-policy.docx` |
 
 ### Incremental Sync And Full Sync
 

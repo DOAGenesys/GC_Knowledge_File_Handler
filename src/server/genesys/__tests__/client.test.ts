@@ -183,15 +183,26 @@ describe('Genesys client', () => {
   });
 
   it('requests an upload URL and returns the ticket', async () => {
-    withToken(() =>
-      json(200, { url: 'https://upload.example/abc?sig=xyz', headers: { 'x-amz-acl': 'private' } }),
-    );
+    let sentBody: Record<string, unknown> = {};
+    withToken((_url, init) => {
+      sentBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return json(200, {
+        url: 'https://upload.example/abc?sig=xyz',
+        headers: { 'x-amz-acl': 'private' },
+      });
+    });
     const client = await fresh();
     const ticket = await client.requestUploadUrl('11111111-1111-1111-1111-111111111111', 'sync-1', {
       fileName: 'a.txt',
       contentMd5: 'kAFQmDzST7DWlj99KOF/cg==',
+      originUri: 'https://docs.example.com/a.txt',
     });
     expect(ticket.url).toContain('https://upload.example');
+    expect(sentBody).toMatchObject({
+      fileName: 'a.txt',
+      contentMd5: 'kAFQmDzST7DWlj99KOF/cg==',
+      originUri: 'https://docs.example.com/a.txt',
+    });
   });
 
   it('patch Completed maps a timeout to COMPLETION_UNKNOWN', async () => {

@@ -27,6 +27,8 @@ export interface ActiveRunFile {
   lastModified: number;
   sha256Base64: string | null;
   contentMd5Base64: string | null;
+  /** Stable HTTPS URL of the original document, used by Genesys source links. */
+  originUri?: string;
   status: UiFileStatus;
   progress: number;
   attemptId: string | null;
