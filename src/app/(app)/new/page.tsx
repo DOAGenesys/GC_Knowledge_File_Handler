@@ -778,7 +778,7 @@ function PreflightRow({
           </div>
         ) : (
           <div className="faint" style={{ fontSize: 11.5, marginTop: 4 }}>
-            Used by Agent Copilot source links.
+            Used to reference source links.
           </div>
         )}
       </td>
