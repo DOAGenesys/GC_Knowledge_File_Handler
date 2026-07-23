@@ -20,7 +20,7 @@ Error codes referenced below are the stable codes from
 **Safe next steps:**
 
 1. Configure environment variables (see [`.env.example`](../.env.example)). Required for boot of auth + Genesys:
-   - **Genesys OAuth (Client Credentials):** `GENESYS_CLIENT_ID`, `GENESYS_CLIENT_SECRET`, `GENESYS_REGION_API_HOST` (bare host, no scheme, e.g. `api.mypurecloud.com`).
+   - **Genesys OAuth (Client Credentials):** `GENESYS_CLIENT_ID`, `GENESYS_CLIENT_SECRET`, `GENESYS_REGION_API_HOST` (bare host, no scheme, e.g. `api.mypurecloud.de`).
    - **App access (single admin):** `ADMIN_USERNAME`, `ADMIN_PASSWORD` (`openssl rand -base64 24`), `APP_SESSION_SECRET` (32+ chars, `openssl rand -base64 48`). Optionally `SESSION_TTL_MINUTES` (default `720`).
    - **Build metadata:** `NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_ENVIRONMENT_LABEL` (`local` | `preview` | `production`).
 2. Set feature flags to the intended posture. Defaults (`FEATURE_DEFAULTS`): discovery/history/creation **on**; `ENABLE_ORG_SYNC_DIAGNOSTICS`, `ENABLE_FULL_SYNC`, `ENABLE_PROXY_UPLOAD`, `ENABLE_SOURCE_UPDATE`, `ENABLE_SOURCE_DELETE` **off**. Only enable a flag once its Genesys permission is granted.

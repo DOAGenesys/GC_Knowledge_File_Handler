@@ -24,7 +24,7 @@ After saving, copy the **Client ID** and **Client Secret** into the app's enviro
 ```bash
 GENESYS_CLIENT_ID=...        # OAuth client ID
 GENESYS_CLIENT_SECRET=...    # OAuth client secret (server-side only)
-GENESYS_REGION_API_HOST=api.mypurecloud.com   # see section 3 — bare host, NO scheme
+GENESYS_REGION_API_HOST=api.mypurecloud.de   # see section 3 — bare host, NO scheme
 ```
 
 These three variables are required for any Genesys call. If any is missing the app still boots, but sync actions are disabled and Diagnostics reports the gap (`src/server/config.ts`). The separate single-admin login (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `APP_SESSION_SECRET`) is also required and fails closed if absent — that is app access control, not Genesys auth.
@@ -88,6 +88,7 @@ You do **not** configure a separate login/auth host. The OAuth token is requeste
 | `GENESYS_REGION_API_HOST` | Derived token host (`POST /oauth/token`) |
 |---|---|
 | `api.mypurecloud.com` | `login.mypurecloud.com` |
+| `api.mypurecloud.de` | `login.mypurecloud.de` |
 | `api.mypurecloud.ie` | `login.mypurecloud.ie` |
 | `api.usw2.pure.cloud` | `login.usw2.pure.cloud` |
 | `api.mypurecloud.com.au` | `login.mypurecloud.com.au` |
