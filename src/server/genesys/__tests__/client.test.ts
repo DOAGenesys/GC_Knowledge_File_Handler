@@ -91,6 +91,23 @@ describe('Genesys client', () => {
     expect(sources[0]).toMatchObject({ id: 's1', name: 'Support KB', type: 'FileUpload' });
   });
 
+  it('keeps legacy sources without a type as unknown', async () => {
+    withToken(() =>
+      json(200, {
+        entities: [
+          { id: 's1', name: 'Support KB', type: 'FileUpload' },
+          { id: 's2', name: 'Legacy source', status: 'Active' },
+        ],
+      }),
+    );
+    const client = await fresh();
+    const sources = await client.listSources();
+    expect(sources).toEqual([
+      expect.objectContaining({ id: 's1', type: 'FileUpload' }),
+      expect.objectContaining({ id: 's2', type: 'Unknown' }),
+    ]);
+  });
+
   it('maps 404 on getSource to SOURCE_NOT_FOUND', async () => {
     withToken(() => json(404, { message: 'not found' }));
     const client = await fresh();

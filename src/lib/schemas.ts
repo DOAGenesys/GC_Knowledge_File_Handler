@@ -160,7 +160,9 @@ export const genesysSourceSummarySchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    type: z.string(),
+    // Some Genesys environments return legacy sources without a type. Keep
+    // them discoverable as incompatible instead of rejecting the whole list.
+    type: z.string().default('Unknown'),
     status: z.string().optional(),
     dateLastSync: z.string().nullish(),
     documentCount: z.number().nullish(),
